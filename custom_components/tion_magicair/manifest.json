@@ -1,0 +1,9 @@
+{
+  "domain": "tion_magicair",
+  "name": "Tion MagicAir",
+  "codeowners": [],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "requirements": ["tion>=0.2.0"],
+  "version": "1.0.0"
+}

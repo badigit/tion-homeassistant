@@ -1,0 +1,23 @@
+{
+  "entity": {
+    "select": {
+      "gate": {
+        "default": "mdi:air-filter",
+        "state": {
+          "Street": "mdi:door-open",
+          "Indoor": "mdi:recycle",
+          "Mixed": "mdi:shuffle-variant"
+        }
+      }
+    },
+    "binary_sensor": {
+      "filter_need_replace": {
+        "default": "mdi:air-filter",
+        "state": {
+          "on": "mdi:alert-circle-outline",
+          "off": "mdi:check-circle-outline"
+        }
+      }
+    }
+  }
+}
