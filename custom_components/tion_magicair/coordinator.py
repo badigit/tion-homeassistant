@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -18,14 +20,18 @@ _LOGGER = logging.getLogger(__name__)
 class TionDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data from Tion API."""
 
-    def __init__(self, hass: HomeAssistant, api: TionApi) -> None:
+    def __init__(self, hass: HomeAssistant, api: TionApi, entry: ConfigEntry) -> None:
         """Initialize."""
         self.api = api
+        self.entry = entry
+
+        scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(seconds=scan_interval),
         )
 
     async def _async_update_data(self) -> dict:
@@ -39,8 +45,6 @@ class TionDataUpdateCoordinator(DataUpdateCoordinator):
                     devices[device.guid] = device
             return devices
         except Exception as error:
-            # Tion library specific error handling could be added here
-            # For now, we wrap general exceptions
             if "auth" in str(error).lower() or "unauthorized" in str(error).lower():
                 raise ConfigEntryAuthFailed("Authentication failed") from error
             raise UpdateFailed(f"Error communicating with API: {error}") from error

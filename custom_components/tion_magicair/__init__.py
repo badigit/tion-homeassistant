@@ -36,14 +36,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     password = entry.data[CONF_PASSWORD]
 
     api = await hass.async_add_executor_job(TionApi, username, password)
-    coordinator = TionDataUpdateCoordinator(hass, api)
+    coordinator = TionDataUpdateCoordinator(hass, api, entry)
 
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = TionData(api=api, coordinator=coordinator)
+
+    entry.async_on_unload(entry.add_update_listener(update_listener))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
+
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

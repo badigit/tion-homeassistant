@@ -6,6 +6,13 @@
           "username": "Email",
           "password": "Password"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Tion MagicAir",
+        "description": "Please provide your new password for {username}",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -14,7 +21,8 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful"
     }
   },
   "options": {
