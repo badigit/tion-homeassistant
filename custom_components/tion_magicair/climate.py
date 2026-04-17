@@ -13,9 +13,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .entity import TionEntity
 from . import TionData
 
 
@@ -35,7 +35,7 @@ async def async_setup_entry(
     )
 
 
-class TionClimate(CoordinatorEntity, ClimateEntity):
+class TionClimate(TionEntity, ClimateEntity):
     """Representation of a Tion breezer."""
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -50,22 +50,9 @@ class TionClimate(CoordinatorEntity, ClimateEntity):
 
     def __init__(self, coordinator, guid):
         """Initialize the climate entity."""
-        super().__init__(coordinator)
-        self._guid = guid
-        device = coordinator.data[guid]
-        self._attr_name = device.name
+        super().__init__(coordinator, guid)
+        self._attr_name = None  # Main entity inherits device name
         self._attr_unique_id = f"{DOMAIN}_{guid}_climate"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, guid)},
-            "name": device.name,
-            "manufacturer": "Tion",
-            "model": device.type,
-        }
-
-    @property
-    def device(self):
-        """Return the device from coordinator."""
-        return self.coordinator.data[self._guid]
 
     @property
     def hvac_mode(self) -> HVACMode:

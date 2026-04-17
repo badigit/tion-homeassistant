@@ -6,9 +6,9 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .entity import TionEntity
 from . import TionData
 
 GATE_MODES = {
@@ -35,7 +35,7 @@ async def async_setup_entry(
     )
 
 
-class TionGateSelect(CoordinatorEntity, SelectEntity):
+class TionGateSelect(TionEntity, SelectEntity):
     """Representation of a Tion gate selection."""
 
     _attr_options = list(GATE_MODES.values())
@@ -43,27 +43,17 @@ class TionGateSelect(CoordinatorEntity, SelectEntity):
 
     def __init__(self, coordinator, guid):
         """Initialize the select entity."""
-        super().__init__(coordinator)
-        self._guid = guid
-        device = coordinator.data[guid]
-        self._attr_name = f"{device.name} Air Source"
+        super().__init__(coordinator, guid)
+        self._attr_name = "Air Source"
         self._attr_unique_id = f"{DOMAIN}_{guid}_gate"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, guid)},
-            "name": device.name,
-            "manufacturer": "Tion",
-            "model": device.type,
-        }
 
     @property
     def current_option(self) -> str | None:
         """Return the selected entity option to represent the entity state."""
-        device = self.coordinator.data[self._guid]
-        return GATE_MODES.get(device.gate)
+        return GATE_MODES.get(self.device.gate)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        device = self.coordinator.data[self._guid]
         if (val := INV_GATE_MODES.get(option)) is not None:
-            await self.hass.async_add_executor_job(device.set_state, {"gate": val})
+            await self.hass.async_add_executor_job(self.device.set_state, {"gate": val})
             await self.coordinator.async_request_refresh()

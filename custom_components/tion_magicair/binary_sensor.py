@@ -10,9 +10,9 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .entity import TionEntity
 from . import TionData
 
 BINARY_SENSOR_TYPES: list[BinarySensorEntityDescription] = [
@@ -42,26 +42,17 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TionBinarySensor(CoordinatorEntity, BinarySensorEntity):
+class TionBinarySensor(TionEntity, BinarySensorEntity):
     """Representation of a Tion binary sensor."""
 
     def __init__(self, coordinator, guid, description):
         """Initialize the binary sensor."""
-        super().__init__(coordinator)
-        self._guid = guid
+        super().__init__(coordinator, guid)
         self.entity_description = description
-        device = coordinator.data[guid]
-        self._attr_name = f"{device.name} {description.name}"
+        self._attr_name = description.name
         self._attr_unique_id = f"{DOMAIN}_{guid}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, guid)},
-            "name": device.name,
-            "manufacturer": "Tion",
-            "model": device.type,
-        }
 
     @property
     def is_on(self) -> bool | None:
         """Return true if the binary sensor is on."""
-        device = self.coordinator.data[self._guid]
-        return getattr(device, self.entity_description.key, None)
+        return getattr(self.device, self.entity_description.key, None)

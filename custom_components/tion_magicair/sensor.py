@@ -17,9 +17,9 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .entity import TionEntity
 from . import TionData
 
 
@@ -96,28 +96,19 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TionSensor(CoordinatorEntity, SensorEntity):
+class TionSensor(TionEntity, SensorEntity):
     """Representation of a Tion sensor."""
 
     entity_description: TionSensorEntityDescription
 
     def __init__(self, coordinator, guid, description):
         """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._guid = guid
+        super().__init__(coordinator, guid)
         self.entity_description = description
-        device = coordinator.data[guid]
-        self._attr_name = f"{device.name} {description.name}"
+        self._attr_name = description.name
         self._attr_unique_id = f"{DOMAIN}_{guid}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, guid)},
-            "name": device.name,
-            "manufacturer": "Tion",
-            "model": device.type,
-        }
 
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        device = self.coordinator.data[self._guid]
-        return getattr(device, self.entity_description.attr_name, None)
+        return getattr(self.device, self.entity_description.attr_name, None)
