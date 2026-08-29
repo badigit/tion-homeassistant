@@ -1,0 +1,32 @@
+[project]
+name = "tion-magicair"
+version = "2.0.0"
+description = "Интеграция Home Assistant для бризеров Tion и станций MagicAir"
+requires-python = ">=3.14.2"
+# Сама интеграция внешних зависимостей не имеет — клиент облака написан на
+# aiohttp, который уже есть в Home Assistant.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    # Пин повторяет версию ядра на проде и на dev-инстансе (2026.8.3):
+    # тесты обязаны падать на том же API, на котором работает интеграция.
+    "pytest-homeassistant-custom-component==0.13.357",
+    "pytest-timeout>=2.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Потолок на один тест. Зависший тест неотличим от идущего и съедает часы;
+# метод thread обязателен явно — на Windows нет SIGALRM, и умолчание молча
+# деградирует.
+timeout = 60
+timeout_method = "thread"
+
+[tool.coverage.run]
+source = ["custom_components/tion_magicair"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
