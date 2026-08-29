@@ -22,7 +22,8 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Поставить uv
-        uses: astral-sh/setup-uv@v10
+        # Плавающего тега мажора у этого экшена нет — только полные версии.
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
