@@ -14,6 +14,17 @@
         }
       }
     },
+    "number": {
+      "speed_max_set": {
+        "default": "mdi:fan-chevron-up"
+      },
+      "speed_min_set": {
+        "default": "mdi:fan-chevron-down"
+      },
+      "target_co2": {
+        "default": "mdi:molecule-co2"
+      }
+    },
     "select": {
       "gate": {
         "default": "mdi:air-filter",
@@ -25,6 +36,21 @@
       }
     },
     "sensor": {
+      "airflow": {
+        "default": "mdi:weather-windy"
+      },
+      "error_code": {
+        "default": "mdi:alert-circle-outline"
+      },
+      "filter_days_left": {
+        "default": "mdi:air-filter"
+      },
+      "run_time": {
+        "default": "mdi:timer-outline"
+      },
+      "signal_level": {
+        "default": "mdi:signal"
+      },
       "speed": {
         "default": "mdi:fan"
       },
@@ -33,6 +59,9 @@
       },
       "temp_out": {
         "default": "mdi:air-filter"
+      },
+      "wifi_signal": {
+        "default": "mdi:wifi"
       }
     }
   }

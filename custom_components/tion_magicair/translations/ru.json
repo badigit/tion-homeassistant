@@ -40,11 +40,25 @@
   },
   "entity": {
     "binary_sensor": {
+      "connectivity": {
+        "name": "Связь"
+      },
       "fan_state": {
         "name": "Вентилятор"
       },
       "filter_need_replace": {
         "name": "Требуется замена фильтра"
+      }
+    },
+    "number": {
+      "speed_max_set": {
+        "name": "Максимальная скорость в авто"
+      },
+      "speed_min_set": {
+        "name": "Минимальная скорость в авто"
+      },
+      "target_co2": {
+        "name": "Порог CO2"
       }
     },
     "select": {
@@ -58,11 +72,35 @@
       }
     },
     "sensor": {
+      "airflow": {
+        "name": "Производительность"
+      },
       "co2": {
         "name": "CO2"
       },
+      "error_code": {
+        "name": "Код ошибки"
+      },
+      "filter_days_left": {
+        "name": "Ресурс фильтра"
+      },
       "humidity": {
         "name": "Влажность"
+      },
+      "pm1": {
+        "name": "PM1"
+      },
+      "pm10": {
+        "name": "PM10"
+      },
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "run_time": {
+        "name": "Наработка"
+      },
+      "signal_level": {
+        "name": "Уровень сигнала"
       },
       "speed": {
         "name": "Скорость"
@@ -75,6 +113,9 @@
       },
       "temperature": {
         "name": "Температура"
+      },
+      "wifi_signal": {
+        "name": "Сигнал Wi-Fi"
       }
     }
   }

@@ -5,17 +5,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from tion import Breezer
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .coordinator import TionConfigEntry, TionDataUpdateCoordinator, TionDevice
+from .api import TionBreezer, TionDevice
+from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionDescribedEntity
 
 
@@ -24,7 +24,18 @@ class TionBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Описание бинарного сенсора Tion."""
 
     value_fn: Callable[[TionDevice], bool | None]
+    # Связь сообщает как раз о том, что устройство недоступно, поэтому такая
+    # сущность не должна уходить в unavailable вместе с ним.
+    ignore_device_validity: bool = False
 
+
+CONNECTIVITY_SENSOR = TionBinarySensorEntityDescription(
+    key="connectivity",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    value_fn=lambda device: device.is_online,
+    ignore_device_validity=True,
+)
 
 BREEZER_BINARY_SENSORS: tuple[TionBinarySensorEntityDescription, ...] = (
     TionBinarySensorEntityDescription(
@@ -37,6 +48,11 @@ BREEZER_BINARY_SENSORS: tuple[TionBinarySensorEntityDescription, ...] = (
         device_class=BinarySensorDeviceClass.PROBLEM,
         value_fn=lambda device: device.filter_need_replace,
     ),
+    CONNECTIVITY_SENSOR,
+)
+
+MAGICAIR_BINARY_SENSORS: tuple[TionBinarySensorEntityDescription, ...] = (
+    CONNECTIVITY_SENSOR,
 )
 
 
@@ -45,22 +61,38 @@ async def async_setup_entry(
     entry: TionConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Создать бинарные сенсоры бризеров."""
+    """Создать бинарные сенсоры всех устройств аккаунта."""
     coordinator = entry.runtime_data
 
-    async_add_entities(
-        TionBinarySensor(coordinator, device, description)
-        for device in coordinator.data.values()
-        if isinstance(device, Breezer)
-        for description in BREEZER_BINARY_SENSORS
-    )
+    entities: list[TionBinarySensor] = []
+    for device in coordinator.data.devices.values():
+        descriptions = (
+            BREEZER_BINARY_SENSORS
+            if isinstance(device, TionBreezer)
+            else MAGICAIR_BINARY_SENSORS
+        )
+        entities.extend(
+            TionBinarySensor(coordinator, device, description)
+            for description in descriptions
+        )
+
+    async_add_entities(entities)
 
 
 class TionBinarySensor(TionDescribedEntity, BinarySensorEntity):
-    """Бинарное состояние бризера."""
+    """Бинарное состояние устройства Tion."""
 
     entity_description: TionBinarySensorEntityDescription
     coordinator: TionDataUpdateCoordinator
+
+    @property
+    def available(self) -> bool:
+        """Связь остаётся доступной, даже когда устройство offline."""
+        if self.entity_description.ignore_device_validity:
+            return (
+                self.coordinator.last_update_success and self.device is not None
+            )
+        return super().available
 
     @property
     def is_on(self) -> bool | None:

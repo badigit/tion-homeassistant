@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from tion import Breezer
-
 from homeassistant.components.climate import (
     FAN_AUTO,
     FAN_OFF,
@@ -18,12 +16,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DEFAULT_MAX_SPEED
+from .api import ZONE_MODE_AUTO, ZONE_MODE_MANUAL, TionBreezer
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
-from .entity import TionEntity
-
-ZONE_MODE_AUTO = "auto"
-ZONE_MODE_MANUAL = "manual"
+from .entity import TionBreezerEntity
 
 
 async def async_setup_entry(
@@ -36,12 +31,12 @@ async def async_setup_entry(
 
     async_add_entities(
         TionClimate(coordinator, device)
-        for device in coordinator.data.values()
-        if isinstance(device, Breezer)
+        for device in coordinator.data.devices.values()
+        if isinstance(device, TionBreezer)
     )
 
 
-class TionClimate(TionEntity, ClimateEntity):
+class TionClimate(TionBreezerEntity, ClimateEntity):
     """Бризер: нагрев, скорость и целевая температура."""
 
     _attr_name = None
@@ -56,7 +51,7 @@ class TionClimate(TionEntity, ClimateEntity):
     coordinator: TionDataUpdateCoordinator
 
     def __init__(
-        self, coordinator: TionDataUpdateCoordinator, device: Breezer
+        self, coordinator: TionDataUpdateCoordinator, device: TionBreezer
     ) -> None:
         """Инициализировать сущность бризера."""
         super().__init__(coordinator, device, "climate")
@@ -65,10 +60,8 @@ class TionClimate(TionEntity, ClimateEntity):
         if device.heater_installed:
             self._attr_hvac_modes.append(HVACMode.HEAT)
 
-        # Потолок скорости у моделей разный: O₂ отдаёт 4, S3/S4 — 6.
-        max_speed = int(device.speed_limit or DEFAULT_MAX_SPEED)
         self._attr_fan_modes = [FAN_OFF, FAN_AUTO] + [
-            str(speed) for speed in range(1, max_speed + 1)
+            str(speed) for speed in range(1, device.max_speed + 1)
         ]
 
         if device.t_min is not None:
@@ -110,7 +103,7 @@ class TionClimate(TionEntity, ClimateEntity):
             return FAN_AUTO
         if not device.is_on:
             return FAN_OFF
-        return str(int(device.speed))
+        return str(int(device.speed or 0))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -118,6 +111,7 @@ class TionClimate(TionEntity, ClimateEntity):
         if (device := self.device) is None:
             return None
         return {
+            "zone_name": device.zone.name,
             "zone_mode": device.zone.mode,
             "zone_target_co2": device.zone.target_co2,
         }
@@ -127,15 +121,14 @@ class TionClimate(TionEntity, ClimateEntity):
         device = self._require_device()
 
         if hvac_mode is HVACMode.OFF:
-            await self._async_apply(device, zone_mode=ZONE_MODE_MANUAL, speed=0)
+            await self.coordinator.async_send_zone(device.zone, mode=ZONE_MODE_MANUAL)
+            await self.coordinator.async_send_breezer(device, speed=0)
             return
 
         # Ниже первой скорости бризер выключен, поэтому включаем её при переходе.
-        speed = int(device.speed) or 1
-        await self._async_apply(
+        await self.coordinator.async_send_breezer(
             device,
-            zone_mode=None,
-            speed=speed,
+            speed=int(device.speed or 0) or 1,
             heater_enabled=hvac_mode is HVACMode.HEAT,
         )
 
@@ -144,19 +137,23 @@ class TionClimate(TionEntity, ClimateEntity):
         device = self._require_device()
 
         if fan_mode == FAN_AUTO:
-            await self._async_apply(device, zone_mode=ZONE_MODE_AUTO)
-        elif fan_mode == FAN_OFF:
-            await self._async_apply(device, zone_mode=ZONE_MODE_MANUAL, speed=0)
-        else:
-            await self._async_apply(
-                device, zone_mode=ZONE_MODE_MANUAL, speed=int(fan_mode)
-            )
+            await self.coordinator.async_send_zone(device.zone, mode=ZONE_MODE_AUTO)
+            return
+
+        if device.zone.mode != ZONE_MODE_MANUAL:
+            await self.coordinator.async_send_zone(device.zone, mode=ZONE_MODE_MANUAL)
+            device = self._require_device()
+
+        speed = 0 if fan_mode == FAN_OFF else int(fan_mode)
+        await self.coordinator.async_send_breezer(device, speed=speed)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Задать целевую температуру нагрева."""
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
-        await self._async_apply(self._require_device(), t_set=int(temperature))
+        await self.coordinator.async_send_breezer(
+            self._require_device(), t_set=int(temperature)
+        )
 
     async def async_turn_on(self) -> None:
         """Включить бризер."""
@@ -168,37 +165,8 @@ class TionClimate(TionEntity, ClimateEntity):
         """Выключить бризер."""
         await self.async_set_hvac_mode(HVACMode.OFF)
 
-    def _require_device(self) -> Breezer:
-        """Получить устройство или сказать, что команду выполнять не на чем."""
+    def _require_device(self) -> TionBreezer:
+        """Получить бризер или сказать, что команду выполнять не на чем."""
         if (device := self.device) is None:
             raise HomeAssistantError("Бризер пропал из аккаунта Tion")
         return device
-
-    async def _async_apply(
-        self,
-        device: Breezer,
-        *,
-        zone_mode: str | None = None,
-        **changes: Any,
-    ) -> None:
-        """Отправить изменения в облако и обновить состояние."""
-        await self.hass.async_add_executor_job(
-            self._apply, device, zone_mode, changes
-        )
-        await self.coordinator.async_request_refresh()
-
-    @staticmethod
-    def _apply(device: Breezer, zone_mode: str | None, changes: dict[str, Any]) -> None:
-        """Синхронная отправка: сначала режим зоны, затем параметры бризера."""
-        if zone_mode is not None and device.zone.mode != zone_mode:
-            device.zone.mode = zone_mode
-            if not device.zone.send():
-                raise HomeAssistantError("Облако Tion отклонило смену режима зоны")
-
-        if not changes:
-            return
-
-        for attribute, value in changes.items():
-            setattr(device, attribute, value)
-        if not device.send():
-            raise HomeAssistantError("Облако Tion отклонило команду бризеру")

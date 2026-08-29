@@ -40,11 +40,25 @@
   },
   "entity": {
     "binary_sensor": {
+      "connectivity": {
+        "name": "Connection"
+      },
       "fan_state": {
         "name": "Fan state"
       },
       "filter_need_replace": {
         "name": "Filter replacement required"
+      }
+    },
+    "number": {
+      "speed_max_set": {
+        "name": "Maximum speed in auto"
+      },
+      "speed_min_set": {
+        "name": "Minimum speed in auto"
+      },
+      "target_co2": {
+        "name": "Target CO2"
       }
     },
     "select": {
@@ -58,11 +72,35 @@
       }
     },
     "sensor": {
+      "airflow": {
+        "name": "Airflow"
+      },
       "co2": {
         "name": "CO2"
       },
+      "error_code": {
+        "name": "Error code"
+      },
+      "filter_days_left": {
+        "name": "Filter life left"
+      },
       "humidity": {
         "name": "Humidity"
+      },
+      "pm1": {
+        "name": "PM1"
+      },
+      "pm10": {
+        "name": "PM10"
+      },
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "run_time": {
+        "name": "Run time"
+      },
+      "signal_level": {
+        "name": "Signal level"
       },
       "speed": {
         "name": "Speed"
@@ -75,6 +113,9 @@
       },
       "temperature": {
         "name": "Temperature"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
       }
     }
   }

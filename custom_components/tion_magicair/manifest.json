@@ -7,7 +7,6 @@
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/badigit/tion-homeassistant/issues",
-  "loggers": ["tion"],
-  "requirements": ["tion>=1.28"],
-  "version": "1.1.0"
+  "requirements": [],
+  "version": "2.0.0"
 }

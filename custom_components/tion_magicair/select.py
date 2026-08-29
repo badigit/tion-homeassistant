@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
-from tion import Breezer
-
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import GATE_OPTIONS
+from .api import (
+    GATE_INSIDE,
+    GATE_MIXED,
+    GATE_OUTSIDE,
+    ZONE_MODE_MANUAL,
+    TionBreezer,
+)
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
-from .entity import TionEntity
+from .entity import TionBreezerEntity
 
+GATE_OPTIONS = {
+    GATE_INSIDE: "inside",
+    GATE_MIXED: "mixed",
+    GATE_OUTSIDE: "outside",
+}
 OPTION_TO_GATE = {option: gate for gate, option in GATE_OPTIONS.items()}
 
 
@@ -26,12 +35,12 @@ async def async_setup_entry(
 
     async_add_entities(
         TionGateSelect(coordinator, device)
-        for device in coordinator.data.values()
-        if isinstance(device, Breezer) and device.gate is not None
+        for device in coordinator.data.devices.values()
+        if isinstance(device, TionBreezer) and device.gate is not None
     )
 
 
-class TionGateSelect(TionEntity, SelectEntity):
+class TionGateSelect(TionBreezerEntity, SelectEntity):
     """Заслонка: улица, помещение или смешанный режим."""
 
     _attr_translation_key = "gate"
@@ -39,7 +48,7 @@ class TionGateSelect(TionEntity, SelectEntity):
     coordinator: TionDataUpdateCoordinator
 
     def __init__(
-        self, coordinator: TionDataUpdateCoordinator, device: Breezer
+        self, coordinator: TionDataUpdateCoordinator, device: TionBreezer
     ) -> None:
         """Инициализировать сущность."""
         super().__init__(coordinator, device, "gate")
@@ -55,20 +64,13 @@ class TionGateSelect(TionEntity, SelectEntity):
         """Переставить заслонку."""
         if (device := self.device) is None:
             raise HomeAssistantError("Бризер пропал из аккаунта Tion")
-        await self.hass.async_add_executor_job(
-            self._set_gate, device, OPTION_TO_GATE[option]
+
+        # Облако принимает заслонку только в ручном режиме зоны.
+        if device.zone.mode != ZONE_MODE_MANUAL:
+            await self.coordinator.async_send_zone(device.zone, mode=ZONE_MODE_MANUAL)
+            if (device := self.device) is None:
+                raise HomeAssistantError("Бризер пропал из аккаунта Tion")
+
+        await self.coordinator.async_send_breezer(
+            device, gate=OPTION_TO_GATE[option]
         )
-        await self.coordinator.async_request_refresh()
-
-    @staticmethod
-    def _set_gate(device: Breezer, gate: int) -> None:
-        """Синхронная отправка положения заслонки."""
-        # Библиотека кладёт gate в запрос только в ручном режиме зоны.
-        if device.zone.mode != "manual":
-            device.zone.mode = "manual"
-            if not device.zone.send():
-                raise HomeAssistantError("Облако Tion отклонило смену режима зоны")
-
-        device.gate = gate
-        if not device.send():
-            raise HomeAssistantError("Облако Tion отклонило смену заслонки")
