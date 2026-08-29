@@ -2343,6 +2343,7 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dev = [
     { name = "pillow" },
+    { name = "pytest-cov" },
     { name = "pytest-homeassistant-custom-component" },
     { name = "pytest-timeout" },
 ]
@@ -2352,6 +2353,7 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "pillow", specifier = ">=11" },
+    { name = "pytest-cov", specifier = ">=6" },
     { name = "pytest-homeassistant-custom-component", specifier = "==0.13.357" },
     { name = "pytest-timeout", specifier = ">=2.3" },
 ]

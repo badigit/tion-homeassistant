@@ -272,6 +272,28 @@ class TionSnapshot:
     devices: dict[str, TionMagicAir | TionBreezer] = field(default_factory=dict)
 
 
+def _classify(device_type: str, data: dict[str, Any]) -> str | None:
+    """Определить, чем является устройство: станцией или бризером.
+
+    Сначала по имени типа — так опознаются известные модели (co2mb, co2plus,
+    tionO2Rf, breezer3, breezer4, tionLite). Если модель новая, решает состав
+    телеметрии: у бризера есть скорость и температура притока, у станции —
+    углекислый газ. Список типов в мёртвой библиотеке tion состоял из трёх
+    строк, из-за чего Lite и Clever в неё не попадали вовсе.
+    """
+    lowered = device_type.lower()
+    if "co2" in lowered:
+        return "magicair"
+    if any(word in lowered for word in ("breezer", "o2", "lite", "clever")):
+        return "breezer"
+
+    if {"t_in", "speed", "speed_m3h"} & data.keys():
+        return "breezer"
+    if "co2" in data:
+        return "magicair"
+    return None
+
+
 def _parse_device(
     raw: dict[str, Any], zone: TionZone, location_guid: str
 ) -> TionMagicAir | TionBreezer | None:
@@ -292,8 +314,8 @@ def _parse_device(
         "location_guid": location_guid,
     }
 
-    lowered = device_type.lower()
-    if "co2" in lowered:
+    kind = _classify(device_type, data)
+    if kind == "magicair":
         return TionMagicAir(
             **common,
             co2=_number(data.get("co2")),
@@ -306,11 +328,17 @@ def _parse_device(
             wifi_signal=_number(data.get("wi-fi")),
         )
 
-    if "breezer" in lowered or "o2" in lowered:
-        heater_installed = _flag(data.get("heater_installed"))
+    if kind == "breezer":
+        heater_mode = data.get("heater_mode")
         heater_enabled = _flag(data.get("heater_enabled"))
         if heater_enabled is None:
-            heater_enabled = data.get("heater_mode") == "heat"
+            heater_enabled = heater_mode == "heat"
+        heater_installed = _flag(data.get("heater_installed"))
+        if heater_installed is None:
+            # 4S поле не отдаёт вовсе. Наличие heater_mode или включённого
+            # нагрева доказывает, что нагреватель есть, — иначе у модели
+            # пропадал бы режим HEAT (issue #25 апстрима).
+            heater_installed = heater_mode is not None or bool(heater_enabled)
         is_on = _flag(data.get("is_on"))
         speed = _number(data.get("speed"))
         gate = _number(data.get("gate"))
@@ -338,7 +366,15 @@ def _parse_device(
             error_code=_text((data.get("errors") or {}).get("code")),
         )
 
-    _LOGGER.debug("Пропущено устройство неизвестного типа %s", device_type)
+    # Не debug: молча пропущенное устройство выглядит как «интеграция не
+    # видит бризер», и разбираться приходится по переписке, а не по логу.
+    _LOGGER.warning(
+        "Устройство %s не опознано: тип %r, поля телеметрии %s. "
+        "Сообщите об этом в issue — по этим данным модель можно поддержать",
+        raw.get("name"),
+        device_type,
+        sorted(data),
+    )
     return None
 
 

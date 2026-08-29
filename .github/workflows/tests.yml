@@ -1,0 +1,49 @@
+name: Тесты
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Новый push в ту же ветку отменяет предыдущий прогон: гонять устаревший
+# коммит смысла нет.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest
+    # Только Linux: Home Assistant импортирует fcntl, на Windows и macOS
+    # тесты не запускаются в принципе.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Поставить uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Поставить зависимости
+        # --frozen: окружение собирается ровно по uv.lock, без тихого
+        # обновления версий. Версия ядра в тестах должна совпадать с той,
+        # на которой интеграция работает.
+        run: uv sync --group dev --frozen
+
+      - name: Прогнать тесты
+        run: >-
+          uv run pytest
+          --cov=custom_components/tion_magicair
+          --cov-report=term-missing
+
+  hassfest:
+    name: hassfest
+    # Официальный валидатор Home Assistant: проверяет manifest.json,
+    # strings.json и структуру интеграции.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master

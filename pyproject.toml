@@ -13,6 +13,7 @@ dev = [
     # тесты обязаны падать на том же API, на котором работает интеграция.
     "pytest-homeassistant-custom-component==0.13.357",
     "pytest-timeout>=2.3",
+    "pytest-cov>=6",
     # Для scripts/make_brand.py — генерации значка интеграции.
     "pillow>=11",
 ]
