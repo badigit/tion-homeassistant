@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
-from homeassistant.helpers.entity import EntityDescription
+from homeassistant.helpers.entity import Entity, EntityDescription
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import TionBreezer, TionDevice
@@ -81,3 +85,31 @@ class TionDescribedEntity(TionEntity):
         super().__init__(coordinator, device, description.key)
         self.entity_description = description
         self._attr_translation_key = description.key
+
+
+@callback
+def async_add_entities_dynamically(
+    coordinator: TionDataUpdateCoordinator,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+    build: Callable[[TionDataUpdateCoordinator], list[Entity]],
+) -> None:
+    """Заводить сущности по мере появления, а не только по первому опросу.
+
+    Бризер, который был offline в момент запуска, отдаёт неполную телеметрию:
+    производительность, ресурс фильтра и заслонка тогда не создавались вовсе и
+    не появлялись до перезагрузки Home Assistant. То же с устройством, которое
+    добавили в аккаунт позже. Слушатель координатора доводит состав сущностей
+    до фактического сам.
+    """
+    known: set[str] = set()
+
+    @callback
+    def _discover() -> None:
+        fresh = [entity for entity in build(coordinator) if entity.unique_id not in known]
+        if not fresh:
+            return
+        known.update(entity.unique_id for entity in fresh)
+        async_add_entities(fresh)
+
+    coordinator.config_entry.async_on_unload(coordinator.async_add_listener(_discover))
+    _discover()

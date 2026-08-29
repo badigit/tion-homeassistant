@@ -293,3 +293,77 @@ async def test_speed_ceiling_follows_snapshot(
     await hass.async_block_till_done()
 
     assert hass.states.get(entity_id).attributes["max"] == 4
+
+
+# --- состав сущностей следует за снимком -------------------------------------
+
+
+async def _tick(hass: HomeAssistant) -> None:
+    """Дождаться следующего планового опроса."""
+    from datetime import timedelta
+
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from homeassistant.util import dt as dt_util
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=2))
+    await hass.async_block_till_done()
+
+
+async def test_sensors_appear_when_device_wakes_up(
+    hass: HomeAssistant, mock_api: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Бризер был offline на старте — сенсоры появляются без перезагрузки.
+
+    Раньше состав сущностей замораживался первым снимком: пустая телеметрия
+    при запуске означала, что производительности, ресурса фильтра и заслонки
+    не будет до перезапуска Home Assistant.
+    """
+    raw = copy.deepcopy(RAW_LOCATION)
+    raw[0]["zones"][0]["devices"][1]["data"] = {"is_on": False, "data_valid": False}
+    mock_api.async_fetch.return_value = parse_snapshot(raw)
+
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.gostinaia_brizer_airflow") is None
+    assert hass.states.get("select.gostinaia_brizer_air_source") is None
+
+    # Бризер ожил и начал отдавать телеметрию.
+    mock_api.async_fetch.return_value = parse_snapshot(copy.deepcopy(RAW_LOCATION))
+    await _tick(hass)
+
+    assert hass.states.get("sensor.gostinaia_brizer_airflow").state == "75.0"
+    assert hass.states.get("sensor.gostinaia_brizer_filter_life_left") is not None
+    assert hass.states.get("select.gostinaia_brizer_air_source").state == "outside"
+
+
+async def test_new_device_gets_entities_without_reload(
+    hass: HomeAssistant, init_integration: MockConfigEntry, mock_api: AsyncMock
+) -> None:
+    """Второй бризер, добавленный в аккаунт, получает сущности сам."""
+    raw = copy.deepcopy(RAW_LOCATION)
+    second = copy.deepcopy(raw[0]["zones"][0]["devices"][1])
+    second["guid"] = "99999999-0000-0000-0000-000000000001"
+    second["name"] = "Бризер спальни"
+    second["mac"] = "02:00:00:AB:CD:03"
+    raw[0]["zones"][0]["devices"].append(second)
+    mock_api.async_fetch.return_value = parse_snapshot(raw)
+
+    await _tick(hass)
+
+    assert hass.states.get("climate.gostinaia_brizer_spalni") is not None
+    assert hass.states.get("sensor.gostinaia_brizer_spalni_airflow") is not None
+    assert hass.states.get("number.gostinaia_brizer_spalni_target_co2") is not None
+    # Старое устройство никуда не делось и не задвоилось.
+    assert hass.states.get("climate.gostinaia_brizer") is not None
+
+
+async def test_entities_are_not_duplicated(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Повторные опросы не заводят те же сущности заново."""
+    before = len(hass.states.async_entity_ids())
+    await _tick(hass)
+    await _tick(hass)
+    assert len(hass.states.async_entity_ids()) == before

@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .api import TionBreezer
 from .const import MAX_TARGET_CO2, MIN_TARGET_CO2
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
-from .entity import TionBreezerEntity
+from .entity import TionBreezerEntity, async_add_entities_dynamically
 
 # Команды бризеру и зоне шлём по одной.
 PARALLEL_UPDATES = 1
@@ -96,14 +96,17 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Создать числовые настройки бризеров."""
-    coordinator = entry.runtime_data
+    async_add_entities_dynamically(entry.runtime_data, async_add_entities, _build)
 
-    async_add_entities(
+
+def _build(coordinator: TionDataUpdateCoordinator) -> list[TionNumber]:
+    """Собрать числовые настройки по текущему снимку."""
+    return [
         TionNumber(coordinator, device, description)
         for device in coordinator.data.devices.values()
         if isinstance(device, TionBreezer)
         for description in NUMBERS
-    )
+    ]
 
 
 class TionNumber(TionBreezerEntity, NumberEntity):

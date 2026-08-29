@@ -15,7 +15,7 @@ from .api import (
     TionBreezer,
 )
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
-from .entity import TionBreezerEntity
+from .entity import TionBreezerEntity, async_add_entities_dynamically
 
 # Команды бризеру шлём по одной.
 PARALLEL_UPDATES = 1
@@ -34,13 +34,16 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Создать выбор заслонки — только у бризеров, которые её отдают."""
-    coordinator = entry.runtime_data
+    async_add_entities_dynamically(entry.runtime_data, async_add_entities, _build)
 
-    async_add_entities(
+
+def _build(coordinator: TionDataUpdateCoordinator) -> list[TionGateSelect]:
+    """Собрать выбор заслонки по текущему снимку."""
+    return [
         TionGateSelect(coordinator, device)
         for device in coordinator.data.devices.values()
         if isinstance(device, TionBreezer) and device.gate is not None
-    )
+    ]
 
 
 class TionGateSelect(TionBreezerEntity, SelectEntity):

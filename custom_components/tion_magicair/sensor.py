@@ -25,7 +25,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import TionBreezer, TionDevice, TionMagicAir
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
-from .entity import TionDescribedEntity
+from .entity import TionDescribedEntity, async_add_entities_dynamically
 
 # Обновление централизовано координатором.
 PARALLEL_UPDATES = 0
@@ -178,8 +178,11 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Создать сенсоры для всех устройств аккаунта."""
-    coordinator = entry.runtime_data
+    async_add_entities_dynamically(entry.runtime_data, async_add_entities, _build)
 
+
+def _build(coordinator: TionDataUpdateCoordinator) -> list[TionSensor]:
+    """Собрать сенсоры по текущему снимку."""
     entities: list[TionSensor] = []
     for device in coordinator.data.devices.values():
         if isinstance(device, TionBreezer):
@@ -194,7 +197,7 @@ async def async_setup_entry(
             if description.exists_fn(device)
         )
 
-    async_add_entities(entities)
+    return entities
 
 
 class TionSensor(TionDescribedEntity, SensorEntity):

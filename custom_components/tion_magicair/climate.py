@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import DEFAULT_MAX_SPEED, ZONE_MODE_AUTO, ZONE_MODE_MANUAL, TionBreezer
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
-from .entity import TionBreezerEntity
+from .entity import TionBreezerEntity, async_add_entities_dynamically
 
 # Команды бризеру шлём по одной: облако принимает состояние
 # целиком, и параллельные записи затирали бы друг друга.
@@ -31,13 +31,16 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Создать climate-сущности для бризеров."""
-    coordinator = entry.runtime_data
+    async_add_entities_dynamically(entry.runtime_data, async_add_entities, _build)
 
-    async_add_entities(
+
+def _build(coordinator: TionDataUpdateCoordinator) -> list[TionClimate]:
+    """Собрать climate-сущности по текущему снимку."""
+    return [
         TionClimate(coordinator, device)
         for device in coordinator.data.devices.values()
         if isinstance(device, TionBreezer)
-    )
+    ]
 
 
 class TionClimate(TionBreezerEntity, ClimateEntity):
