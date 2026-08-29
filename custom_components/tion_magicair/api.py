@@ -40,6 +40,10 @@ BASE_HEADERS = {
 }
 
 DEFAULT_TIMEOUT = 15
+# Общий потолок на команду. Без него независимые таймауты складывались: один
+# вызов службы мог удерживать блокировку до шести минут, а вторая команда из
+# автоматизации ждала за ним ещё столько же.
+COMMAND_TIMEOUT = 45
 TASK_POLL_INTERVAL = 0.5
 TASK_ATTEMPTS = 20
 
@@ -53,7 +57,6 @@ TASK_FAILED_STATUSES = frozenset(
 ZONE_MODE_AUTO = "auto"
 ZONE_MODE_MANUAL = "manual"
 
-DEFAULT_TARGET_CO2 = 900
 DEFAULT_MAX_SPEED = 6
 
 GATE_INSIDE = 0
@@ -158,10 +161,13 @@ class TionZone:
             # CO2 в зоне, режим которой интеграции незнаком.
             new_mode = self.mode or ZONE_MODE_MANUAL
 
-        return {
-            "mode": new_mode,
-            "co2": int(round(new_co2)) if new_co2 is not None else DEFAULT_TARGET_CO2,
-        }
+        if new_co2 is None:
+            raise TionCommandError(
+                "Облако Tion не отдало порог CO2 зоны — команда не отправлена, "
+                "иначе он был бы затёрт значением по умолчанию"
+            )
+
+        return {"mode": new_mode, "co2": int(round(new_co2))}
 
 
 @dataclass(slots=True, kw_only=True)
@@ -252,6 +258,25 @@ class TionBreezer(TionDevice):
         # ручной режим, а его снимок зоны об этом ещё не знает.
         gate_explicit = "gate" in changes
         state.update(changes)
+
+        # Облако принимает состояние целиком, поэтому неизвестное поле пришлось
+        # бы чем-то заполнить — и придуманное значение выключило бы бризер,
+        # погасило нагрев или сбило границы автоматики. Отказ заметен и
+        # обратим, а такая «успешная» команда — нет.
+        required = {
+            "speed": state["speed"],
+            "speed_min_set": state["speed_min_set"],
+            "speed_max_set": state["speed_max_set"],
+        }
+        if self.heater_installed:
+            required["t_set"] = state["t_set"]
+        missing = sorted(name for name, value in required.items() if value is None)
+        if missing:
+            raise TionCommandError(
+                "Облако Tion не отдало поля "
+                f"{', '.join(missing)} — команда не отправлена, "
+                "чтобы не подставлять выдуманные значения"
+            )
 
         speed = int(round(state["speed"] or 0))
         heater_enabled = bool(state["heater_enabled"])
@@ -489,9 +514,20 @@ class TionApiClient:
                         HTTPStatus.UNAUTHORIZED,
                         HTTPStatus.FORBIDDEN,
                     ):
-                        raise TionAuthError("Облако Tion не приняло почту или пароль")
+                        # Отказ по паролю облако присылает как JSON. Если тело
+                        # не разбирается — это HTML captive portal или прокси на
+                        # пути, и требовать у человека пароль заново нельзя:
+                        # запись ушла бы в reauth и не поднялась бы сама после
+                        # возвращения сети.
+                        if await self._looks_like_api(response):
+                            raise TionAuthError(
+                                "Облако Tion не приняло почту или пароль"
+                            )
+                        raise TionConnectionError(
+                            f"Ответ {response.status} пришёл не от облака Tion"
+                        )
                     response.raise_for_status()
-                    body = await response.json(content_type=None)
+                    body = await self._read_json(response)
             except TimeoutError as err:
                 raise TionConnectionError("Облако Tion не ответило вовремя") from err
             except aiohttp.ClientError as err:
@@ -514,6 +550,14 @@ class TionApiClient:
         except ValueError as err:
             # Прокси на пути может отдать HTTP 200 с HTML-страницей.
             raise TionConnectionError("Облако Tion вернуло не JSON") from err
+
+    @classmethod
+    async def _looks_like_api(cls, response: Any) -> bool:
+        """Ответ похож на настоящий ответ облака, а не на страницу прокси."""
+        try:
+            return isinstance(await cls._read_json(response), (dict, list))
+        except TionError:
+            return False
 
     @classmethod
     async def _describe(cls, response: Any) -> str:
@@ -563,6 +607,16 @@ class TionApiClient:
 
     async def _async_send_mode(self, url: str, payload: dict[str, Any]) -> None:
         """Поставить команду в очередь облака и дождаться её выполнения."""
+        try:
+            async with asyncio.timeout(COMMAND_TIMEOUT):
+                await self._async_send_mode_inner(url, payload)
+        except TimeoutError as err:
+            raise TionCommandError(
+                f"Облако Tion не ответило за {COMMAND_TIMEOUT} секунд"
+            ) from err
+
+    async def _async_send_mode_inner(self, url: str, payload: dict[str, Any]) -> None:
+        """Тело отправки команды, ограниченное общим дедлайном."""
         body = await self._async_request("POST", url, json=payload)
         if not isinstance(body, dict) or body.get("status") != "queued":
             description = ""
@@ -580,7 +634,11 @@ class TionApiClient:
     async def _async_wait_for_task(self, task_id: str) -> None:
         """Дождаться, пока облако доложит о выполнении команды."""
         url = f"{API_BASE}/task/{task_id}"
-        for _ in range(TASK_ATTEMPTS):
+        for attempt in range(TASK_ATTEMPTS):
+            if attempt:
+                # Пауза перед повтором, а не после последнего: раньше цикл
+                # тратил лишние полсекунды уже перед самой ошибкой.
+                await asyncio.sleep(TASK_POLL_INTERVAL)
             body = await self._async_request("GET", url)
             status = body.get("status") if isinstance(body, dict) else None
             if status == "completed":
@@ -592,7 +650,6 @@ class TionApiClient:
                 raise TionCommandError(
                     f"Облако Tion не выполнило команду: {reason or status}"
                 )
-            await asyncio.sleep(TASK_POLL_INTERVAL)
         raise TionCommandError("Облако Tion не подтвердило выполнение команды")
 
     async def _async_request(

@@ -58,8 +58,13 @@ async def test_authenticate_saves_token(
 async def test_authenticate_rejects_credentials(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, status: int
 ) -> None:
-    """Отказ по учётным данным ведёт в повторный вход, а не в «нет сети»."""
-    aioclient_mock.post(AUTH_URL, status=status)
+    """Отказ по учётным данным ведёт в повторный вход, а не в «нет сети».
+
+    Тело обязательно: по нему отказ облака отличается от ответа прокси,
+    который тоже умеет отдавать 403. Прежняя версия теста передавала голый
+    статус и закрепляла ложный запрос пароля как правильное поведение.
+    """
+    aioclient_mock.post(AUTH_URL, status=status, json={"error": "invalid_grant"})
 
     with pytest.raises(TionAuthError):
         await _client(hass).async_authenticate()

@@ -15,6 +15,7 @@ import pytest
 from custom_components.tion_magicair.api import (
     ZONE_MODE_AUTO,
     ZONE_MODE_MANUAL,
+    TionCommandError,
     TionBreezer,
     TionMagicAir,
     parse_snapshot,
@@ -215,7 +216,11 @@ def test_zone_payload_keeps_target_co2() -> None:
 
 
 def test_zone_payload_defaults_when_cloud_silent() -> None:
-    """Если порога в облаке нет, подставляется значение по умолчанию."""
+    """Если порога в облаке нет, команда не отправляется.
+
+    Раньше подставлялось 900, и смена режима зоны затирала настройку
+    пользователя в облаке.
+    """
     snapshot = parse_snapshot(
         [
             {
@@ -233,7 +238,8 @@ def test_zone_payload_defaults_when_cloud_silent() -> None:
         ]
     )
     zone = next(iter(snapshot.devices.values())).zone
-    assert zone.mode_payload() == {"mode": ZONE_MODE_MANUAL, "co2": 900}
+    with pytest.raises(TionCommandError, match="порог CO2"):
+        zone.mode_payload()
 
 
 def test_offline_device_is_not_valid() -> None:

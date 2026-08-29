@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import (
     TionApiClient,
     TionAuthError,
+    TionConnectionError,
     TionBreezer,
     TionError,
     TionSnapshot,
@@ -88,6 +89,13 @@ class TionDataUpdateCoordinator(DataUpdateCoordinator[TionSnapshot]):
         """Выполнить команду, разобрать отказ и перечитать состояние."""
         try:
             await coro
+        except TionConnectionError as err:
+            # Связь оборвалась после того, как облако приняло команду: она
+            # могла выполниться. Без перечитывания интерфейс показывал бы
+            # старое состояние до следующего планового опроса — при своём
+            # интервале это до часа.
+            await self.async_request_refresh()
+            raise HomeAssistantError(str(err)) from err
         except TionAuthError as err:
             # Из обработчика службы ConfigEntryAuthFailed повторный вход НЕ
             # запускает: Home Assistant делает это только на путях настройки и

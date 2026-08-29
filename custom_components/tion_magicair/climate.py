@@ -186,9 +186,16 @@ class TionClimate(TionBreezerEntity, ClimateEntity):
         )
 
     async def async_turn_on(self) -> None:
-        """Включить бризер."""
+        """Включить бризер, не трогая нагреватель.
+
+        Раньше включение всегда выбирало HEAT: команда «включи бризер» из
+        автоматизации запускала нагрев даже летом.
+        """
+        device = self.device
+        heating = device is not None and bool(device.heater_enabled)
         await self.async_set_hvac_mode(
-            HVACMode.HEAT if HVACMode.HEAT in self.hvac_modes else HVACMode.FAN_ONLY
+            HVACMode.HEAT if heating and HVACMode.HEAT in self.hvac_modes
+            else HVACMode.FAN_ONLY
         )
 
     async def async_turn_off(self) -> None:

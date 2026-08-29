@@ -122,8 +122,14 @@ class TionNumber(TionBreezerEntity, NumberEntity):
         super().__init__(coordinator, device, description.key)
         self.entity_description = description
         self._attr_translation_key = description.key
-        if description.max_fn is not None:
-            self._attr_native_max_value = description.max_fn(device)
+
+    @property
+    def native_max_value(self) -> float:
+        """Потолок берётся у модели и следует за снимком, а не за первым ответом."""
+        device = self.device
+        if device is not None and self.entity_description.max_fn is not None:
+            return self.entity_description.max_fn(device)
+        return super().native_max_value
 
     @property
     def native_value(self) -> float | None:
