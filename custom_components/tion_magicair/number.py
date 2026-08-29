@@ -12,12 +12,16 @@ from homeassistant.components.number import (
 )
 from homeassistant.const import EntityCategory, UnitOfRatio
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import TionBreezer
 from .const import MAX_TARGET_CO2, MIN_TARGET_CO2
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionBreezerEntity
+
+# Команды бризеру и зоне шлём по одной.
+PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -131,5 +135,6 @@ class TionNumber(TionBreezerEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Отправить новое значение в облако."""
         if (device := self.device) is None:
-            return
+            # Молчаливый выход выглядел бы как применённая настройка.
+            raise HomeAssistantError("Бризер пропал из аккаунта Tion")
         await self.entity_description.set_fn(self.coordinator, device, value)

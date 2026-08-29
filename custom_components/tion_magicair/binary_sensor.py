@@ -18,6 +18,9 @@ from .api import TionBreezer, TionDevice
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionDescribedEntity
 
+# Обновление централизовано координатором.
+PARALLEL_UPDATES = 0
+
 
 @dataclass(frozen=True, kw_only=True)
 class TionBinarySensorEntityDescription(BinarySensorEntityDescription):

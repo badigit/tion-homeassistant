@@ -20,6 +20,10 @@ from .api import ZONE_MODE_AUTO, ZONE_MODE_MANUAL, TionBreezer
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionBreezerEntity
 
+# Команды бризеру шлём по одной: облако принимает состояние
+# целиком, и параллельные записи затирали бы друг друга.
+PARALLEL_UPDATES = 1
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

@@ -17,6 +17,9 @@ from .api import (
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionBreezerEntity
 
+# Команды бризеру шлём по одной.
+PARALLEL_UPDATES = 1
+
 GATE_OPTIONS = {
     GATE_INSIDE: "inside",
     GATE_MIXED: "mixed",

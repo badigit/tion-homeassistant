@@ -27,6 +27,9 @@ from .api import TionBreezer, TionDevice, TionMagicAir
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionDescribedEntity
 
+# Обновление централизовано координатором.
+PARALLEL_UPDATES = 0
+
 SECONDS_PER_DAY = 86400
 SECONDS_PER_HOUR = 3600
 
