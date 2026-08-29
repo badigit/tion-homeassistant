@@ -16,7 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .api import ZONE_MODE_AUTO, ZONE_MODE_MANUAL, TionBreezer
+from .api import DEFAULT_MAX_SPEED, ZONE_MODE_AUTO, ZONE_MODE_MANUAL, TionBreezer
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionBreezerEntity
 
@@ -60,18 +60,40 @@ class TionClimate(TionBreezerEntity, ClimateEntity):
         """Инициализировать сущность бризера."""
         super().__init__(coordinator, device, "climate")
 
-        self._attr_hvac_modes = [HVACMode.OFF, HVACMode.FAN_ONLY]
-        if device.heater_installed:
-            self._attr_hvac_modes.append(HVACMode.HEAT)
+    # Списки режимов и границы температуры вычисляются от текущего снимка, а не
+    # запоминаются при создании: если в первом же ответе облака поле выпало,
+    # режим нагрева иначе пропал бы до перезапуска Home Assistant.
+    @property
+    def hvac_modes(self) -> list[HVACMode]:
+        """Доступные режимы работы."""
+        modes = [HVACMode.OFF, HVACMode.FAN_ONLY]
+        device = self.device
+        if device is not None and device.heater_installed:
+            modes.append(HVACMode.HEAT)
+        return modes
 
-        self._attr_fan_modes = [FAN_OFF, FAN_AUTO] + [
-            str(speed) for speed in range(1, device.max_speed + 1)
-        ]
+    @property
+    def fan_modes(self) -> list[str]:
+        """Скорости, которые поддерживает конкретная модель."""
+        device = self.device
+        max_speed = device.max_speed if device is not None else DEFAULT_MAX_SPEED
+        return [FAN_OFF, FAN_AUTO] + [str(speed) for speed in range(1, max_speed + 1)]
 
-        if device.t_min is not None:
-            self._attr_min_temp = device.t_min
-        if device.t_max is not None:
-            self._attr_max_temp = device.t_max
+    @property
+    def min_temp(self) -> float:
+        """Нижняя граница уставки нагрева."""
+        device = self.device
+        if device is not None and device.t_min is not None:
+            return device.t_min
+        return super().min_temp
+
+    @property
+    def max_temp(self) -> float:
+        """Верхняя граница уставки нагрева."""
+        device = self.device
+        if device is not None and device.t_max is not None:
+            return device.t_max
+        return super().max_temp
 
     @property
     def hvac_mode(self) -> HVACMode | None:
@@ -126,6 +148,10 @@ class TionClimate(TionBreezerEntity, ClimateEntity):
 
         if hvac_mode is HVACMode.OFF:
             await self.coordinator.async_send_zone(device.zone, mode=ZONE_MODE_MANUAL)
+            # Снимок после смены режима зоны устарел: собранный из него payload
+            # вернул бы облаку старые t_set и границы скорости, затерев правки,
+            # сделанные из приложения Tion. В set_fan_mode это уже учтено.
+            device = self._require_device()
             await self.coordinator.async_send_breezer(device, speed=0)
             return
 

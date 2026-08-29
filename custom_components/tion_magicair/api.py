@@ -43,6 +43,13 @@ DEFAULT_TIMEOUT = 15
 TASK_POLL_INTERVAL = 0.5
 TASK_ATTEMPTS = 20
 
+# Статусы, после которых ждать больше нечего: облако уже отказалось выполнять
+# команду. Без этого списка отказ маскировался десятью секундами опроса, а
+# причина из description терялась.
+TASK_FAILED_STATUSES = frozenset(
+    {"error", "failed", "rejected", "cancelled", "canceled", "timeout", "aborted"}
+)
+
 ZONE_MODE_AUTO = "auto"
 ZONE_MODE_MANUAL = "manual"
 
@@ -139,10 +146,20 @@ class TionZone:
         self, *, mode: str | None = None, target_co2: float | None = None
     ) -> dict[str, Any]:
         """Построить тело запроса POST /zone/{guid}/mode."""
-        new_mode = mode if mode is not None else self.mode
         new_co2 = target_co2 if target_co2 is not None else self.target_co2
+
+        if mode is not None:
+            if mode not in (ZONE_MODE_AUTO, ZONE_MODE_MANUAL):
+                raise TionCommandError(f"Неизвестный режим зоны: {mode}")
+            new_mode = mode
+        else:
+            # Режим не меняем — возвращаем облаку его же значение. Подмена на
+            # manual молча отключала бы автоматику, например при правке порога
+            # CO2 в зоне, режим которой интеграции незнаком.
+            new_mode = self.mode or ZONE_MODE_MANUAL
+
         return {
-            "mode": new_mode if new_mode in (ZONE_MODE_AUTO, ZONE_MODE_MANUAL) else ZONE_MODE_MANUAL,
+            "mode": new_mode,
             "co2": int(round(new_co2)) if new_co2 is not None else DEFAULT_TARGET_CO2,
         }
 
@@ -341,6 +358,11 @@ def _parse_device(
             heater_installed = heater_mode is not None or bool(heater_enabled)
         is_on = _flag(data.get("is_on"))
         speed = _number(data.get("speed"))
+        if is_on is None:
+            # Модель флаг не отдала. Считать её выключенной нельзя: тогда любая
+            # команда собиралась бы из снимка со скоростью 0 и физически гасила
+            # бы бризер при правке любой другой настройки.
+            is_on = bool(speed)
         gate = _number(data.get("gate"))
         return TionBreezer(
             **common,
@@ -382,11 +404,26 @@ def parse_snapshot(payload: list[dict[str, Any]]) -> TionSnapshot:
     """Разобрать ответ GET /location целиком."""
     snapshot = TionSnapshot()
     for raw_location in payload:
+        # Узел без guid опознать нечем: пропускаем его, но не роняем весь опрос
+        # голым KeyError мимо иерархии TionError.
+        if not isinstance(raw_location, dict) or not raw_location.get("guid"):
+            _LOGGER.warning("Пропущена локация без guid: %s", raw_location)
+            continue
+
         location = TionLocation.from_api(raw_location)
         snapshot.locations[location.guid] = location
+
         for raw_zone in raw_location.get("zones") or []:
+            if not isinstance(raw_zone, dict) or not raw_zone.get("guid"):
+                _LOGGER.warning("Пропущена зона без guid: %s", raw_zone)
+                continue
+
             zone = TionZone.from_api(raw_zone)
             for raw_device in raw_zone.get("devices") or []:
+                if not isinstance(raw_device, dict) or not raw_device.get("guid"):
+                    _LOGGER.warning("Пропущено устройство без guid: %s", raw_device)
+                    continue
+
                 device = _parse_device(raw_device, zone, location.guid)
                 if device is not None:
                     snapshot.devices[device.guid] = device
@@ -424,9 +461,18 @@ class TionApiClient:
         """Текущий токен доступа."""
         return self._token
 
-    async def async_authenticate(self) -> None:
-        """Получить новый токен по логину и паролю."""
+    async def async_authenticate(self, rejected: str | None = None) -> None:
+        """Получить новый токен по логину и паролю.
+
+        rejected — токен, который облако только что отвергло. Пока запрос ждал
+        блокировку, соседний мог уже обновить токен; повторный логин тогда не
+        нужен и вреден: он лишний раз дёргает /oauth2/token и заменяет рабочий
+        токен на новый.
+        """
         async with self._auth_lock:
+            if rejected is not None and self._token not in (None, rejected):
+                return
+
             payload = {
                 "username": self._username,
                 "password": self._password,
@@ -459,6 +505,26 @@ class TionApiClient:
             self._token = token
             if self._token_callback is not None:
                 await self._token_callback(token)
+
+    @staticmethod
+    async def _read_json(response: Any) -> Any:
+        """Разобрать тело ответа, не выпуская наружу чужие исключения."""
+        try:
+            return await response.json(content_type=None)
+        except ValueError as err:
+            # Прокси на пути может отдать HTTP 200 с HTML-страницей.
+            raise TionConnectionError("Облако Tion вернуло не JSON") from err
+
+    @classmethod
+    async def _describe(cls, response: Any) -> str:
+        """Вытащить из тела ответа причину отказа, если она там есть."""
+        try:
+            body = await cls._read_json(response)
+        except TionError:
+            return ""
+        if isinstance(body, dict):
+            return str(body.get("description") or body.get("message") or "")
+        return ""
 
     async def async_fetch(self) -> TionSnapshot:
         """Прочитать состояние всего аккаунта."""
@@ -505,15 +571,27 @@ class TionApiClient:
             raise TionCommandError(
                 f"Облако Tion отклонило команду: {description}".strip(": ")
             )
-        await self._async_wait_for_task(body["task_id"])
+
+        task_id = body.get("task_id")
+        if not task_id:
+            raise TionCommandError("Облако Tion не вернуло идентификатор задачи")
+        await self._async_wait_for_task(str(task_id))
 
     async def _async_wait_for_task(self, task_id: str) -> None:
         """Дождаться, пока облако доложит о выполнении команды."""
         url = f"{API_BASE}/task/{task_id}"
         for _ in range(TASK_ATTEMPTS):
             body = await self._async_request("GET", url)
-            if isinstance(body, dict) and body.get("status") == "completed":
+            status = body.get("status") if isinstance(body, dict) else None
+            if status == "completed":
                 return
+            if status in TASK_FAILED_STATUSES:
+                reason = ""
+                if isinstance(body, dict):
+                    reason = str(body.get("description") or "")
+                raise TionCommandError(
+                    f"Облако Tion не выполнило команду: {reason or status}"
+                )
             await asyncio.sleep(TASK_POLL_INTERVAL)
         raise TionCommandError("Облако Tion не подтвердило выполнение команды")
 
@@ -526,19 +604,40 @@ class TionApiClient:
 
         # Вторая попытка — единственная, и только после успешного логина.
         for attempt in (1, 2):
+            # Токен запоминаем: между отказом и повторным логином его мог
+            # обновить соседний запрос, и второй логин был бы лишним.
+            used_token = self._token or ""
             headers = {
                 **BASE_HEADERS,
                 "Content-Type": "application/json",
-                "Authorization": self._token or "",
+                "Authorization": used_token,
             }
             try:
                 async with self._session.request(
                     method, url, json=json, headers=headers, timeout=self._timeout
                 ) as response:
-                    unauthorized = response.status == HTTPStatus.UNAUTHORIZED
-                    if not unauthorized:
-                        response.raise_for_status()
-                        return await response.json(content_type=None)
+                    status = response.status
+
+                    # 403 облако отдаёт на отозванный токен наравне с 401.
+                    # Считать его «нет связи» нельзя: тогда повторный вход не
+                    # запустится никогда, а сущности навсегда останутся
+                    # недоступными.
+                    if status not in (
+                        HTTPStatus.UNAUTHORIZED,
+                        HTTPStatus.FORBIDDEN,
+                    ):
+                        if status >= HTTPStatus.INTERNAL_SERVER_ERROR:
+                            raise TionConnectionError(
+                                f"Облако Tion ответило {status}"
+                            )
+                        if status >= HTTPStatus.BAD_REQUEST:
+                            # Осмысленный отказ на запрос, а не проблема сети.
+                            reason = await self._describe(response)
+                            raise TionCommandError(
+                                f"Облако Tion отклонило запрос ({status})"
+                                f"{': ' + reason if reason else ''}"
+                            )
+                        return await self._read_json(response)
             except TimeoutError as err:
                 raise TionConnectionError("Облако Tion не ответило вовремя") from err
             except aiohttp.ClientError as err:
@@ -546,7 +645,6 @@ class TionApiClient:
 
             if attempt == 2:
                 break
-            self._token = None
-            await self.async_authenticate()
+            await self.async_authenticate(rejected=used_token)
 
         raise TionAuthError("Облако Tion не приняло токен")

@@ -134,6 +134,10 @@ async def test_unknown_device_creates_no_sensors(
     await hass.async_block_till_done()
 
     assert hass.states.get("sensor.gostinaia_magicair_co2") is not None
+    # Раньше чужой объект ронял платформу binary_sensor целиком, а проверка
+    # только sensor.* этого не замечала.
+    assert hass.states.get("binary_sensor.gostinaia_magicair_connection") is not None
+    assert hass.states.get("binary_sensor.gostinaia_brizer_fan_state") is not None
 
 
 async def test_values_are_none_without_device(
@@ -168,13 +172,21 @@ async def test_auth_error_during_command_asks_for_reauth(
         else (SERVICE_SET_HVAC_MODE, {ATTR_HVAC_MODE: HVACMode.OFF})
     )
 
-    with pytest.raises(ConfigEntryAuthFailed):
+    with pytest.raises(HomeAssistantError):
         await hass.services.async_call(
             CLIMATE_DOMAIN,
             service,
             {ATTR_ENTITY_ID: CLIMATE, **data},
             blocking=True,
         )
+
+    # Раньше проверялось лишь то, что исключение всплыло. Но повторный вход
+    # Home Assistant сам запускает только на путях настройки и планового
+    # опроса, поэтому диалог обязан открыть координатор.
+    await hass.async_block_till_done()
+    assert [
+        flow["context"]["source"] for flow in hass.config_entries.flow.async_progress()
+    ] == ["reauth"]
 
 
 async def test_select_raises_if_device_vanishes_midway(

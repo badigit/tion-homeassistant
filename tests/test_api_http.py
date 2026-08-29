@@ -133,9 +133,10 @@ async def test_fetch_without_devices(
 class _Response:
     """Ответ-заглушка с интерфейсом aiohttp."""
 
-    def __init__(self, status: int, payload: Any) -> None:
+    def __init__(self, status: int, payload: Any, delay: float = 0) -> None:
         self.status = status
         self._payload = payload
+        self._delay = delay
 
     async def json(self, content_type: Any = None) -> Any:
         return self._payload
@@ -145,6 +146,9 @@ class _Response:
             raise aiohttp.ClientResponseError(None, (), status=self.status)
 
     async def __aenter__(self) -> _Response:
+        # Уступаем управление: без этого две корутины выполняются строго
+        # последовательно и гонку за токеном воспроизвести нельзя.
+        await asyncio.sleep(self._delay)
         return self
 
     async def __aexit__(self, *exc: Any) -> bool:
@@ -307,14 +311,47 @@ async def test_task_never_completes(
         await client.async_send_breezer(breezer)
 
 
-async def test_concurrent_auth_logs_in_once(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
-) -> None:
-    """Параллельные запросы не устраивают гонку за токеном."""
-    aioclient_mock.post(AUTH_URL, json=TOKEN)
-    aioclient_mock.get(LOCATION_URL, json=RAW_LOCATION)
+class _RaceSession:
+    """Сессия, отвергающая всё, кроме последнего выданного токена."""
 
-    client = _client(hass)
-    await asyncio.gather(client.async_authenticate(), client.async_authenticate())
+    def __init__(self) -> None:
+        self.logins = 0
+        self.seen: list[str | None] = []
+        self.valid_token: str | None = None
 
-    assert client.token == "Bearer abc123"
+    def post(self, url: str, **kwargs: Any) -> _Response:
+        self.logins += 1
+        self.valid_token = f"Bearer t{self.logins}"
+        # Логин намеренно медленный: пока он идёт, второй запрос обязан успеть
+        # получить свой 401 и упереться в блокировку.
+        return _Response(
+            200, {"token_type": "Bearer", "access_token": f"t{self.logins}"}, delay=0.05
+        )
+
+    def request(self, method: str, url: str, **kwargs: Any) -> _Response:
+        auth = (kwargs.get("headers") or {}).get("Authorization")
+        self.seen.append(auth)
+        if auth != self.valid_token:
+            return _Response(401, None)
+        return _Response(200, RAW_LOCATION)
+
+
+async def test_concurrent_401_logs_in_once() -> None:
+    """Два запроса, одновременно получившие 401, логинятся один раз.
+
+    Прошлая версия теста проверяла только итоговый токен и оставалась зелёной
+    ровно при том поведении, которое отрицает её название. Здесь считается
+    число обращений к endpoint авторизации, и пустой Authorization во второй
+    попытке тоже не проходит.
+    """
+    session = _RaceSession()
+    client = TionApiClient(
+        session, "owner@example.com", "секрет", token="Bearer протухший"
+    )
+
+    first, second = await asyncio.gather(client.async_fetch(), client.async_fetch())
+
+    assert BREEZER_GUID in first.devices
+    assert BREEZER_GUID in second.devices
+    assert session.logins == 1
+    assert "" not in session.seen

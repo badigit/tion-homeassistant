@@ -14,7 +14,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .api import TionBreezer, TionDevice
+from .api import TionBreezer, TionDevice, TionMagicAir
 from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 from .entity import TionDescribedEntity
 
@@ -69,11 +69,14 @@ async def async_setup_entry(
 
     entities: list[TionBinarySensor] = []
     for device in coordinator.data.devices.values():
-        descriptions = (
-            BREEZER_BINARY_SENSORS
-            if isinstance(device, TionBreezer)
-            else MAGICAIR_BINARY_SENSORS
-        )
+        if isinstance(device, TionBreezer):
+            descriptions = BREEZER_BINARY_SENSORS
+        elif isinstance(device, TionMagicAir):
+            descriptions = MAGICAIR_BINARY_SENSORS
+        else:
+            # Без этой ветки чужой объект в снимке ронял всю платформу целиком,
+            # и HA оставался вообще без бинарных сенсоров.
+            continue
         entities.extend(
             TionBinarySensor(coordinator, device, description)
             for description in descriptions

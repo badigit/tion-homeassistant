@@ -134,10 +134,6 @@ async def test_token_saved_and_reused(
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    # Клиент сообщает о новом токене — интеграция обязана его сохранить.
-    token_callback = mock_api.async_fetch.call_args  # клиент уже создан
-    assert token_callback is not None
-
     from custom_components.tion_magicair import _token_store
 
     await _token_store(hass, config_entry).async_save({"token": "Bearer сохранённый"})
@@ -145,6 +141,11 @@ async def test_token_saved_and_reused(
     assert await hass.config_entries.async_reload(config_entry.entry_id)
     await hass.async_block_till_done()
     assert config_entry.state is ConfigEntryState.LOADED
+
+    # Главное: сохранённый токен доехал до клиента, а не был прочитан впустую.
+    assert (
+        mock_api._mock_new_parent.call_args.kwargs["token"] == "Bearer сохранённый"
+    )
 
 
 async def test_remove_entry_drops_token(
