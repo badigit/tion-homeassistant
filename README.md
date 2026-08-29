@@ -1,24 +1,56 @@
-# Tion MagicAir Home Assistant Integration
+# Tion MagicAir — интеграция для Home Assistant
 
-A modern Home Assistant integration for Tion breezers and MagicAir sensors.
+Бризеры Tion и станции MagicAir через облако `api2.magicair.tion.ru`.
+Написана на актуальных паттернах Home Assistant: config flow,
+`DataUpdateCoordinator`, entity descriptions, переводы и диагностика.
 
-## Features
-- **Climate Control**: Full support for Tion Breezer (S3, S4, Lite) including fan speeds (1-6) and heater control.
-- **Sensors**: Real-time telemetry for CO2, Temperature, and Humidity from MagicAir and CO2+ stations.
-- **Air Source Selection**: Choose between Street, Indoor, and Mixed air intake modes.
-- **Filter Status**: Binary sensor for filter replacement alerts.
-- **Config Flow**: Easy setup via the Home Assistant UI.
-- **Modern Standards**: Uses `DataUpdateCoordinator`, `ConfigFlow`, `EntityDescriptions`, and `Diagnostics`.
+## Что появляется в Home Assistant
 
-## Installation
+Одно устройство на каждый бризер и на каждую станцию MagicAir.
 
-### Manual Installation
-1. Copy the `custom_components/tion_magicair` directory to your Home Assistant `custom_components` folder.
-2. Restart Home Assistant.
-3. In the Home Assistant UI, go to **Settings** -> **Devices & Services** -> **Add Integration** and search for **Tion MagicAir**.
+**Бризер**
 
-## Configuration
-Setup is handled entirely via the UI. You will need your Tion MagicAir account credentials (email and password).
+| Сущность | Что показывает |
+| --- | --- |
+| `climate` | режим (выключен / продув / нагрев), скорость, целевая температура |
+| `sensor` «Температура на входе» | воздух до бризера (`t_in`) |
+| `sensor` «Температура на выходе» | воздух после бризера (`t_out`) |
+| `sensor` «Скорость» | текущая скорость вентилятора |
+| `binary_sensor` «Вентилятор» | работает или нет |
+| `binary_sensor` «Требуется замена фильтра» | ресурс фильтра исчерпан |
+| `select` «Источник воздуха» | улица / помещение / смешанный — только у моделей с заслонкой |
 
-## Credits
-Uses the `tion` Python library.
+**MagicAir**
+
+| Сущность | Что показывает |
+| --- | --- |
+| `sensor` «CO2» | углекислый газ, ppm |
+| `sensor` «Температура» | температура в комнате |
+| `sensor` «Влажность» | влажность в комнате |
+
+### Скорость и режим зоны
+
+Облако Tion управляет зоной, а не отдельным бризером. У climate-сущности
+скорость `auto` означает, что зону ведёт облако по уровню CO₂; выбор
+конкретной скорости или `off` переводит зону в ручной режим. Текущий режим
+зоны и порог CO₂ видны в атрибутах `zone_mode` и `zone_target_co2`.
+
+Список скоростей строится по `speed_limit` устройства: у O₂ это 1–4,
+у S3/S4 — 1–6.
+
+## Установка
+
+1. Скопировать каталог `custom_components/tion_magicair` в `custom_components`
+   своего Home Assistant.
+2. Перезапустить Home Assistant.
+3. **Настройки → Устройства и службы → Добавить интеграцию → Tion MagicAir**,
+   ввести почту и пароль от аккаунта MagicAir.
+
+Интервал опроса меняется в настройках интеграции (по умолчанию 60 секунд).
+Токен доступа хранится в `.storage/tion_magicair.<entry_id>.token` и переживает
+перезапуск, поэтому логин не тратится на каждый старт.
+
+## Зависимости
+
+Библиотека [`tion`](https://pypi.org/project/tion/) версии 1.28 и новее —
+Home Assistant ставит её сам по `manifest.json`.

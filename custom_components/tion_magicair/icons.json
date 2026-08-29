@@ -1,22 +1,38 @@
 {
   "entity": {
+    "binary_sensor": {
+      "fan_state": {
+        "default": "mdi:fan-off",
+        "state": {
+          "on": "mdi:fan"
+        }
+      },
+      "filter_need_replace": {
+        "default": "mdi:air-filter",
+        "state": {
+          "on": "mdi:alert-circle-outline"
+        }
+      }
+    },
     "select": {
       "gate": {
         "default": "mdi:air-filter",
         "state": {
-          "Street": "mdi:door-open",
-          "Indoor": "mdi:recycle",
-          "Mixed": "mdi:shuffle-variant"
+          "inside": "mdi:recycle",
+          "mixed": "mdi:shuffle-variant",
+          "outside": "mdi:door-open"
         }
       }
     },
-    "binary_sensor": {
-      "filter_need_replace": {
-        "default": "mdi:air-filter",
-        "state": {
-          "on": "mdi:alert-circle-outline",
-          "off": "mdi:check-circle-outline"
-        }
+    "sensor": {
+      "speed": {
+        "default": "mdi:fan"
+      },
+      "temp_in": {
+        "default": "mdi:home-thermometer-outline"
+      },
+      "temp_out": {
+        "default": "mdi:air-filter"
       }
     }
   }

@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Войдите под учётной записью Tion MagicAir.",
+        "data": {
+          "username": "Электронная почта",
+          "password": "Пароль"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Повторный вход в Tion MagicAir",
+        "description": "Введите действующий пароль для {username}.",
+        "data": {
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Не удалось связаться с облаком Tion",
+      "invalid_auth": "Неверная почта или пароль",
+      "unknown": "Непредвиденная ошибка"
+    },
+    "abort": {
+      "already_configured": "Эта учётная запись уже настроена",
+      "reauth_successful": "Повторный вход выполнен"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Интервал опроса"
+        },
+        "data_description": {
+          "scan_interval": "Как часто опрашивать облако Tion, в секундах."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "fan_state": {
+        "name": "Вентилятор"
+      },
+      "filter_need_replace": {
+        "name": "Требуется замена фильтра"
+      }
+    },
+    "select": {
+      "gate": {
+        "name": "Источник воздуха",
+        "state": {
+          "inside": "Из помещения",
+          "mixed": "Смешанный",
+          "outside": "С улицы"
+        }
+      }
+    },
+    "sensor": {
+      "co2": {
+        "name": "CO2"
+      },
+      "humidity": {
+        "name": "Влажность"
+      },
+      "speed": {
+        "name": "Скорость"
+      },
+      "temp_in": {
+        "name": "Температура на входе"
+      },
+      "temp_out": {
+        "name": "Температура на выходе"
+      },
+      "temperature": {
+        "name": "Температура"
+      }
+    }
+  }
+}

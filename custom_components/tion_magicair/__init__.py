@@ -1,59 +1,37 @@
-"""The Tion MagicAir integration."""
+"""Интеграция Tion MagicAir."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import logging
-
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from tion import TionApi
-from .coordinator import TionDataUpdateCoordinator
-
-_LOGGER = logging.getLogger(__name__)
+from .coordinator import TionConfigEntry, TionDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [
-    Platform.CLIMATE,
-    Platform.SENSOR,
-    Platform.SELECT,
     Platform.BINARY_SENSOR,
+    Platform.CLIMATE,
+    Platform.SELECT,
+    Platform.SENSOR,
 ]
 
 
-@dataclass
-class TionData:
-    """Data for Tion integration."""
-
-    api: TionApi
-    coordinator: TionDataUpdateCoordinator
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Tion MagicAir from a config entry."""
-    username = entry.data[CONF_USERNAME]
-    password = entry.data[CONF_PASSWORD]
-
-    api = await hass.async_add_executor_job(TionApi, username, password)
-    coordinator = TionDataUpdateCoordinator(hass, api, entry)
-
+async def async_setup_entry(hass: HomeAssistant, entry: TionConfigEntry) -> bool:
+    """Поднять запись конфигурации."""
+    coordinator = TionDataUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
 
-    entry.runtime_data = TionData(api=api, coordinator=coordinator)
-
-    entry.async_on_unload(entry.add_update_listener(update_listener))
+    entry.runtime_data = coordinator
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
     return True
 
 
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update."""
+async def async_reload_entry(hass: HomeAssistant, entry: TionConfigEntry) -> None:
+    """Перечитать запись после смены опций."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+async def async_unload_entry(hass: HomeAssistant, entry: TionConfigEntry) -> bool:
+    """Выгрузить запись конфигурации."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

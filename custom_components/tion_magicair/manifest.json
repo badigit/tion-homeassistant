@@ -1,9 +1,13 @@
 {
   "domain": "tion_magicair",
   "name": "Tion MagicAir",
-  "codeowners": [],
+  "codeowners": ["@badigit"],
   "config_flow": true,
+  "documentation": "https://github.com/badigit/tion-homeassistant",
+  "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "requirements": ["tion>=0.2.0"],
-  "version": "1.0.0"
+  "issue_tracker": "https://github.com/badigit/tion-homeassistant/issues",
+  "loggers": ["tion"],
+  "requirements": ["tion>=1.28"],
+  "version": "1.1.0"
 }

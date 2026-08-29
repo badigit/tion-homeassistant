@@ -1,58 +1,70 @@
-"""Support for Tion binary sensors."""
+"""Бинарные сенсоры Tion MagicAir."""
 
 from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from tion import Breezer
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
-from .entity import TionEntity
-from . import TionData
+from .coordinator import TionConfigEntry, TionDataUpdateCoordinator, TionDevice
+from .entity import TionDescribedEntity
 
-BINARY_SENSOR_TYPES: list[BinarySensorEntityDescription] = [
-    BinarySensorEntityDescription(
-        key="filter_need_replace",
-        name="Filter Replacement Required",
-        device_class=BinarySensorDeviceClass.PROBLEM,
+
+@dataclass(frozen=True, kw_only=True)
+class TionBinarySensorEntityDescription(BinarySensorEntityDescription):
+    """Описание бинарного сенсора Tion."""
+
+    value_fn: Callable[[TionDevice], bool | None]
+
+
+BREEZER_BINARY_SENSORS: tuple[TionBinarySensorEntityDescription, ...] = (
+    TionBinarySensorEntityDescription(
+        key="fan_state",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        value_fn=lambda device: device.is_on,
     ),
-]
+    TionBinarySensorEntityDescription(
+        key="filter_need_replace",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda device: device.filter_need_replace,
+    ),
+)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    entry: TionConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Tion binary sensor platform."""
-    data: TionData = entry.runtime_data
-    coordinator = data.coordinator
+    """Создать бинарные сенсоры бризеров."""
+    coordinator = entry.runtime_data
 
-    entities = []
-    for guid, device in coordinator.data.items():
-        if device.type == "breezer":
-            for description in BINARY_SENSOR_TYPES:
-                entities.append(TionBinarySensor(coordinator, guid, description))
-
-    async_add_entities(entities)
+    async_add_entities(
+        TionBinarySensor(coordinator, device, description)
+        for device in coordinator.data.values()
+        if isinstance(device, Breezer)
+        for description in BREEZER_BINARY_SENSORS
+    )
 
 
-class TionBinarySensor(TionEntity, BinarySensorEntity):
-    """Representation of a Tion binary sensor."""
+class TionBinarySensor(TionDescribedEntity, BinarySensorEntity):
+    """Бинарное состояние бризера."""
 
-    def __init__(self, coordinator, guid, description):
-        """Initialize the binary sensor."""
-        super().__init__(coordinator, guid)
-        self.entity_description = description
-        self._attr_name = description.name
-        self._attr_unique_id = f"{DOMAIN}_{guid}_{description.key}"
+    entity_description: TionBinarySensorEntityDescription
+    coordinator: TionDataUpdateCoordinator
 
     @property
     def is_on(self) -> bool | None:
-        """Return true if the binary sensor is on."""
-        return getattr(self.device, self.entity_description.key, None)
+        """Текущее состояние."""
+        if (device := self.device) is None:
+            return None
+        return self.entity_description.value_fn(device)
