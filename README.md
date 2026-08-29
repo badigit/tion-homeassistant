@@ -76,7 +76,22 @@ TionDataUpdateCoordinator
 перезапуск, поэтому логин не тратится на каждый старт. Протухший токен клиент
 обновляет сам, ровно одна повторная попытка на запрос.
 
+## Требования
+
+Home Assistant **2026.7.0** или новее. Ограничение жёсткое: интеграция
+использует `UnitOfRatio` и `UnitOfDensity`, появившиеся в ядре именно в этой
+версии. Проверялась на 2026.8.3.
+
 ## Установка
+
+### Через HACS
+
+1. **HACS → в меню сверху справа Custom repositories**.
+2. Вставить `https://github.com/badigit/tion-homeassistant`, тип — **Integration**.
+3. Найти в списке **Tion MagicAir**, нажать **Download**.
+4. Перезапустить Home Assistant.
+
+### Вручную
 
 1. Скопировать каталог `custom_components/tion_magicair` в `custom_components`
    своего Home Assistant.
