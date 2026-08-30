@@ -48,3 +48,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    # Обязательная проверка для попадания в каталог HACS: смотрит структуру
+    # репозитория, hacs.json, манифест, наличие релиза и значка — то есть те
+    # же условия, по которым бот каталога принимает заявку.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hacs/action@main
+        with:
+          category: integration
