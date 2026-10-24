@@ -11,9 +11,12 @@ from homeassistant.core import HomeAssistant
 
 from .coordinator import TionConfigEntry
 
-REDACT_CONFIG = {CONF_PASSWORD, CONF_USERNAME}
+# Config flow сохраняет email также в заголовке и уникальном ID записи.
+REDACT_CONFIG = {CONF_PASSWORD, CONF_USERNAME, "title", "unique_id"}
 # guid и MAC однозначно указывают на конкретное железо владельца.
-REDACT_DATA = {"guid", "mac", "serial_number", "location_guid"}
+# Пользовательские названия устройств, вложенных зон и локаций могут
+# содержать имена людей и домашние адреса.
+REDACT_DATA = {"guid", "mac", "serial_number", "location_guid", "name"}
 
 
 async def async_get_config_entry_diagnostics(
