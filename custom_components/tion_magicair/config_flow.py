@@ -100,7 +100,7 @@ class TionConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             errors = await self._async_check(username, user_input[CONF_PASSWORD])
             if not errors:
-                return self.async_update_reload_and_abort(
+                return self.async_update_and_abort(
                     entry, data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]}
                 )
 

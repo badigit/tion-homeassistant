@@ -47,7 +47,7 @@ class TionClimate(TionBreezerEntity, ClimateEntity):
     """Бризер: нагрев, скорость и целевая температура."""
 
     _attr_name = None
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 1
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
@@ -110,18 +110,24 @@ class TionClimate(TionBreezerEntity, ClimateEntity):
         return HVACMode.FAN_ONLY
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Температура воздуха на выходе бризера."""
         if (device := self.device) is None:
             return None
         return device.t_out
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Заданная температура нагрева."""
         if (device := self.device) is None:
             return None
         return device.t_set
+
+    # HA < 2026.11 не знает native_*-свойств: оставляем старый API только там.
+    if not hasattr(ClimateEntity, "native_current_temperature"):
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
+        current_temperature = native_current_temperature
+        target_temperature = native_target_temperature
 
     @property
     def fan_mode(self) -> str | None:

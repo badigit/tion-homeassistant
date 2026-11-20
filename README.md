@@ -84,7 +84,16 @@ Home Assistant **2026.7.0** или новее. Ограничение жёстк
 
 ## Установка
 
-### Через HACS
+### Через Marketplace (Home Assistant 2026.11+)
+
+1. Открыть **Настройки → Marketplace** и найти **Tion MagicAir**.
+2. Установить интеграцию. Если её нет в каталоге — выбрать **Add from link**
+   и указать `https://github.com/badigit/tion-homeassistant` (для своей ссылки
+   требуется подключить GitHub).
+3. Перезапустить Home Assistant и добавить **Tion MagicAir** в
+   **Настройки → Устройства и службы**.
+
+### Через HACS (Home Assistant 2026.7–2026.10)
 
 1. **HACS → в меню сверху справа Custom repositories**.
 2. Вставить `https://github.com/badigit/tion-homeassistant`, тип — **Integration**.
