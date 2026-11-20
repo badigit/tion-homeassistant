@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL
@@ -35,14 +35,18 @@ async def test_devices_registered(
     """Локация становится хабом, устройства висят под ней."""
     registry = dr.async_get(hass)
 
-    hub = registry.async_get_device(identifiers={(DOMAIN, LOCATION_GUID)})
+    hub = registry.async_get_device_by_identifier(
+        (DOMAIN, LOCATION_GUID), config_entry_id=init_integration.entry_id
+    )
     assert hub is not None
     assert hub.name == "Дом"
     # MAC локации — это адрес самой станции; отдать его хабу значило бы
     # отобрать устройство у станции, и HA выбросил бы её сущности.
     assert not hub.connections
 
-    breezer = registry.async_get_device(identifiers={(DOMAIN, BREEZER_GUID)})
+    breezer = registry.async_get_device_by_identifier(
+        (DOMAIN, BREEZER_GUID), config_entry_id=init_integration.entry_id
+    )
     assert breezer is not None
     assert breezer.model == "Tion 3S"
     assert breezer.model_id == "breezer3"
@@ -51,7 +55,9 @@ async def test_devices_registered(
     assert breezer.serial_number == "SN-1"
     assert breezer.via_device_id == hub.id
 
-    station = registry.async_get_device(identifiers={(DOMAIN, MAGICAIR_GUID)})
+    station = registry.async_get_device_by_identifier(
+        (DOMAIN, MAGICAIR_GUID), config_entry_id=init_integration.entry_id
+    )
     assert station is not None
     assert station.model == "MagicAir 2"
     # Пустая строка серийника из облака не должна превращаться в пустой номер.
@@ -63,7 +69,9 @@ async def test_area_suggested_from_zone(
 ) -> None:
     """Комната берётся из имени зоны в облаке."""
     registry = dr.async_get(hass)
-    breezer = registry.async_get_device(identifiers={(DOMAIN, BREEZER_GUID)})
+    breezer = registry.async_get_device_by_identifier(
+        (DOMAIN, BREEZER_GUID), config_entry_id=init_integration.entry_id
+    )
     assert breezer.area_id is not None
 
 

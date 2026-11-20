@@ -10,8 +10,8 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.test_util.aiohttp import AiohttpClientMocker
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
@@ -235,7 +235,7 @@ async def test_climate_modes_follow_snapshot(
     """
     from datetime import timedelta
 
-    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from pytest_homeassistant.common import async_fire_time_changed
     from homeassistant.util import dt as dt_util
 
     assert HVACMode.HEAT in hass.states.get(CLIMATE).attributes["hvac_modes"]

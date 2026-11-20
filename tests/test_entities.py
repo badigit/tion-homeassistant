@@ -5,11 +5,11 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.components.diagnostics import (
+from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.components.diagnostics import (
     get_diagnostics_for_config_entry,
 )
-from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
+from pytest_homeassistant.typing import ClientSessionGenerator
 
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, EntityCategory
 from homeassistant.core import HomeAssistant
@@ -126,7 +126,7 @@ async def test_entities_unavailable_when_device_offline(
     import copy
     from datetime import timedelta
 
-    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from pytest_homeassistant.common import async_fire_time_changed
     from homeassistant.util import dt as dt_util
 
     raw = copy.deepcopy(RAW_LOCATION)
@@ -149,7 +149,7 @@ async def test_entities_unavailable_when_poll_fails(
     """Провал опроса тоже уводит сущности в unavailable."""
     from datetime import timedelta
 
-    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from pytest_homeassistant.common import async_fire_time_changed
     from homeassistant.util import dt as dt_util
 
     from custom_components.tion_magicair.api import TionError

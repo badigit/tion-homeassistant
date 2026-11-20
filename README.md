@@ -80,7 +80,7 @@ TionDataUpdateCoordinator
 
 Home Assistant **2026.7.0** или новее. Ограничение жёсткое: интеграция
 использует `UnitOfRatio` и `UnitOfDensity`, появившиеся в ядре именно в этой
-версии. Проверялась на 2026.8.3.
+версии. Проверялась вживую на 2026.8.3; автотесты гоняются на 2026.11.2.
 
 ## Установка
 
@@ -183,12 +183,13 @@ climate, number и select, недоступность устройства и о
 
 ```bash
 docker run --rm -v "$PWD:/src" -w /src --entrypoint sh \
-  ghcr.io/home-assistant/home-assistant:2026.8.3 \
-  -c "pip install -q --break-system-packages pytest-homeassistant-custom-component==0.13.357 pytest-timeout && python -m pytest -q"
+  ghcr.io/home-assistant/home-assistant:2026.11.2 \
+  -c "pip install -q --break-system-packages pytest-homeassistant==2026.11.2 pytest-timeout && python -m pytest -q"
 ```
 
-Версия `pytest-homeassistant-custom-component` пиньтся под конкретную версию
-ядра — 0.13.357 соответствует 2026.8.3.
+Пакет `pytest-homeassistant` выходит вместе с ядром, и его версия равна версии
+ядра — 2026.11.2 соответствует ядру 2026.11.2. Прежний
+`pytest-homeassistant-custom-component` закрыт upstream и сломан.
 
 ## Что проверено вживую
 
