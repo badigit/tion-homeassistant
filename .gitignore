@@ -7,4 +7,7 @@ venv/
 env/
 .env
 .coverage
+# Хранилище конфига тестового плагина: страхует от мусора, если HA начнёт
+# писать .storage в общий testing_config.
+tests/testing_config/.storage/
 *.log

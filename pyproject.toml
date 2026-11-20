@@ -10,8 +10,9 @@ dependencies = []
 [dependency-groups]
 dev = [
     # Пакет выходит вместе с ядром и пинится под его версию: 2026.11.2 — это
-    # homeassistant 2026.11.2. Тесты обязаны падать на том же API, на котором
-    # работает интеграция. Преемник закрытого pytest-homeassistant-custom-component.
+    # homeassistant 2026.11.2, целевое ядро тестов. Для ядер < 2026.11 в
+    # climate.py остаётся legacy fallback. Преемник закрытого
+    # pytest-homeassistant-custom-component.
     "pytest-homeassistant==2026.11.2",
     "pytest-timeout>=2.3",
     "pytest-cov>=6",
