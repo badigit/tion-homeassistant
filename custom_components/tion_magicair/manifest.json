@@ -2,6 +2,7 @@
   "domain": "tion_magicair",
   "name": "Tion MagicAir",
   "codeowners": ["@badigit"],
+  "categories": ["climate"],
   "config_flow": true,
   "documentation": "https://github.com/badigit/tion-homeassistant",
   "integration_type": "hub",
