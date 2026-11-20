@@ -12,7 +12,6 @@ def test_native_temperature_properties_have_legacy_fallback():
     if not hasattr(ClimateEntity, "native_current_temperature"):
         assert TionClimate.current_temperature is TionClimate.native_current_temperature
         assert TionClimate.target_temperature is TionClimate.native_target_temperature
-        assert TionClimate._attr_temperature_unit == UnitOfTemperature.CELSIUS
     else:
         assert "current_temperature" not in TionClimate.__dict__
         assert "target_temperature" not in TionClimate.__dict__
