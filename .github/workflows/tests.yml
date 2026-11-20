@@ -88,5 +88,9 @@ jobs:
               module = "custom_components.tion_magicair"
               import_module(module if name == "__init__" else f"{module}.{name}")
               print(f"OK: {name}")
+          from custom_components.tion_magicair.climate import TionClimate
+          assert "native_current_temperature" in TionClimate.__dict__
+          assert "native_target_temperature" in TionClimate.__dict__
+          assert "current_temperature" not in TionClimate.__dict__
+          assert "target_temperature" not in TionClimate.__dict__
           PY
-          uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 python -m pytest -p no:respx -q tests/test_climate_compat.py
