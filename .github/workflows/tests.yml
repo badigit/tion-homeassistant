@@ -89,3 +89,4 @@ jobs:
               import_module(module if name == "__init__" else f"{module}.{name}")
               print(f"OK: {name}")
           PY
+          uv run --no-project --python 3.14 --with pytest-homeassistant==2026.11.2 python -m pytest -p no:respx -q tests/test_climate_compat.py
