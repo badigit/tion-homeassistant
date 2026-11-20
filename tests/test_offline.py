@@ -12,8 +12,8 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.test_util.aiohttp import AiohttpClientMocker
 
 from homeassistant.components.climate import (
     DOMAIN as CLIMATE_DOMAIN,
@@ -279,7 +279,7 @@ async def test_speed_ceiling_follows_snapshot(
     """Потолок ползунка скорости следует за снимком, а не за первым ответом."""
     from datetime import timedelta
 
-    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from pytest_homeassistant.common import async_fire_time_changed
     from homeassistant.util import dt as dt_util
 
     entity_id = "number.gostinaia_brizer_maximum_speed_in_auto"
@@ -302,7 +302,7 @@ async def _tick(hass: HomeAssistant) -> None:
     """Дождаться следующего планового опроса."""
     from datetime import timedelta
 
-    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from pytest_homeassistant.common import async_fire_time_changed
     from homeassistant.util import dt as dt_util
 
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=2))

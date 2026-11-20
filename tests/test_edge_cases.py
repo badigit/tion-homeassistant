@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import aiohttp
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,

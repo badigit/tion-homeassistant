@@ -9,9 +9,11 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    # Пин повторяет версию ядра на проде и на dev-инстансе (2026.8.3):
-    # тесты обязаны падать на том же API, на котором работает интеграция.
-    "pytest-homeassistant-custom-component==0.13.357",
+    # Пакет выходит вместе с ядром и пинится под его версию: 2026.11.2 — это
+    # homeassistant 2026.11.2, целевое ядро тестов. Для ядер < 2026.11 в
+    # climate.py остаётся legacy fallback. Преемник закрытого
+    # pytest-homeassistant-custom-component.
+    "pytest-homeassistant==2026.11.2",
     "pytest-timeout>=2.3",
     "pytest-cov>=6",
     # Для scripts/make_brand.py — генерации значка интеграции.
@@ -20,7 +22,13 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Обязательные опции pytest-homeassistant: цикл фикстур — функция, а плагин
+# respx выключен — HTTP-моки пакета работают с respx напрямую, и его плагин
+# должен загрузиться после httpx-алиаса Home Assistant.
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-p no:respx"
+pythonpath = ["."]
 # Потолок на один тест. Зависший тест неотличим от идущего и съедает часы;
 # метод thread обязателен явно — на Windows нет SIGALRM, и умолчание молча
 # деградирует.

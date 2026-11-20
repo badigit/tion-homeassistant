@@ -28,7 +28,7 @@ tar czf - custom_components tests pyproject.toml | ssh ha-dev \
 
 ssh ha-dev 'docker run --rm -v /mnt/data/tion-tests:/src -w /src \
   --entrypoint sh ghcr.io/home-assistant/qemux86-64-homeassistant:<версия> \
-  -c "pip install -q --break-system-packages pytest-homeassistant-custom-component==<пин> pytest-timeout pytest-cov; \
+  -c "pip install -q --break-system-packages pytest-homeassistant==<версия ядра> pytest-timeout pytest-cov; \
       python -m pytest -q --cov=custom_components/<домен> --cov-report=term-missing"'
 ```
 
@@ -37,18 +37,12 @@ ssh ha-dev 'docker run --rm -v /mnt/data/tion-tests:/src -w /src \
 
 ## 2. Пин тестовой библиотеки
 
-`pytest-homeassistant-custom-component` жёстко пинит версию ядра. Брать **ту,
-что совпадает с продом**, иначе тесты зелёные на чужом API:
+Прежний `pytest-homeassistant-custom-component` upstream закрыл и объявил сломанным.
+Преемник — `pytest-homeassistant` из core: его версия всегда равна версии ядра.
+Брать релиз с номером, равным версии ядра на проде (ядро 2026.11.2 — пакет
+2026.11.2), иначе тесты зелёные на чужом API.
 
-```bash
-python - <<'PY'
-import json, urllib.request
-for v in ["0.13.357", "0.13.356", "0.13.355"]:
-    d = json.load(urllib.request.urlopen(
-        f"https://pypi.org/pypi/pytest-homeassistant-custom-component/{v}/json", timeout=20))
-    print(v, [r for r in d["info"]["requires_dist"] if r.lower().startswith("homeassistant")])
-PY
-```
+Пакету нужны три опции pytest в pyproject: `asyncio_default_fixture_loop_scope = "function"`, `addopts = "-p no:respx"` и `pythonpath = ["."]`. Фикстура `hass` уже разрешает кастомные интеграции.
 
 Потолок на тест обязателен (`pytest-timeout`, `timeout_method = "thread"` —
 на Windows иначе молча деградирует), см. общее правило `17-test-timeouts.md`.
