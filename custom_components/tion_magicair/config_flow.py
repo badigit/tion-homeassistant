@@ -9,6 +9,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import (
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -100,6 +101,16 @@ class TionConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             errors = await self._async_check(username, user_input[CONF_PASSWORD])
             if not errors:
+                # async_update_entry зовёт только update-listeners, а их у
+                # записи нет, пока setup не прошёл успешно: сломанная запись
+                # осталась бы в SETUP_ERROR под диалогом «reauth_successful».
+                # Планируем перезагрузку сами — то, что раньше гарантировал
+                # async_update_reload_and_abort через
+                # reload_even_if_entry_is_unchanged. Вызов до
+                # async_update_and_abort: его задача стартует уже с новыми
+                # данными записи.
+                if entry.state is not ConfigEntryState.LOADED:
+                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
                 return self.async_update_and_abort(
                     entry, data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]}
                 )

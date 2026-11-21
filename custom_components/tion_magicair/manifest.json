@@ -1,7 +1,7 @@
 {
   "domain": "tion_magicair",
   "name": "Tion MagicAir",
-  "categories": ["climate"],
+  "categories": ["climate.fans_ventilation"],
   "codeowners": ["@badigit"],
   "config_flow": true,
   "documentation": "https://github.com/badigit/tion-homeassistant",

@@ -6,6 +6,7 @@ import pytest
 from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -33,13 +34,14 @@ ERROR_CASES = [
 ]
 
 
-def _entry() -> MockConfigEntry:
+def _entry(state: ConfigEntryState | None = None) -> MockConfigEntry:
     """Уже настроенная запись конфигурации."""
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id=UNIQUE_ID,
         title=USER_INPUT[CONF_USERNAME],
         data=dict(USER_INPUT),
+        state=state,
     )
 
 
@@ -170,6 +172,72 @@ async def test_reauth_flow_error_then_success(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_PASSWORD] == "новый-пароль"
+
+
+async def test_reauth_same_password_reloads_broken_entry(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_setup_entry: AsyncMock
+) -> None:
+    """Тот же валидный пароль перезагружает сломанную запись.
+
+    Данные не изменятся, update_listeners никто не дёрнет: без ручной
+    перезагрузки запись остаётся в SETUP_ERROR под «reauth_successful».
+    """
+    entry = _entry(state=ConfigEntryState.SETUP_ERROR)
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: USER_INPUT[CONF_PASSWORD]}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.state is ConfigEntryState.LOADED
+    # Перезагрузка ровно одна: планирование не задваивает listeners-путь.
+    assert mock_setup_entry.call_count == 1
+
+
+async def test_reauth_changed_password_reloads_broken_entry(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_setup_entry: AsyncMock
+) -> None:
+    """Новый пароль перезагружает сломанную запись.
+
+    У записи в SETUP_ERROR listeners ещё нет — перезагрузку планирует поток.
+    """
+    entry = _entry(state=ConfigEntryState.SETUP_ERROR)
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: "новый-пароль"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_PASSWORD] == "новый-пароль"
+    assert entry.state is ConfigEntryState.LOADED
+    assert mock_setup_entry.call_count == 1
+
+
+async def test_reauth_same_password_healthy_entry_not_reloaded(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_setup_entry: AsyncMock
+) -> None:
+    """Здоровая запись при том же пароле не получает лишнюю перезагрузку."""
+    entry = _entry(state=ConfigEntryState.LOADED)
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: USER_INPUT[CONF_PASSWORD]}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.state is ConfigEntryState.LOADED
+    assert mock_setup_entry.call_count == 0
 
 
 async def test_options_flow(
