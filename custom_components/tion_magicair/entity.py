@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.entity import Entity, EntityDescription
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -30,6 +31,14 @@ class TionEntity(CoordinatorEntity[TionDataUpdateCoordinator]):
         super().__init__(coordinator)
         self._guid = device.guid
         self._attr_unique_id = f"{device.guid}_{key}"
+        # via_device deprecated с 2026.11 (дедлайн 2027.8): хаб связывается
+        # через id реестра. Хаб заводится до платформ, но запись может
+        # исчезнуть — нет записи, нет ссылки, это не ошибка.
+        registry = dr.async_get(self.coordinator.hass)
+        hub = registry.async_get_device_by_identifier(
+            (DOMAIN, device.location_guid),
+            config_entry_id=coordinator.config_entry.entry_id,
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.guid)},
             name=device.name,
@@ -40,7 +49,7 @@ class TionEntity(CoordinatorEntity[TionDataUpdateCoordinator]):
             hw_version=device.hardware,
             serial_number=device.serial_number,
             configuration_url=CONFIGURATION_URL,
-            via_device=(DOMAIN, device.location_guid),
+            via_device_id=hub.id if hub else None,
         )
         # Имя зоны в облаке — это комната, поэтому оно же подсказка для HA.
         if device.zone.name:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
@@ -196,3 +196,15 @@ async def test_snapshot_has_expected_devices(snapshot) -> None:
     breezer = snapshot.devices[BREEZER_GUID]
     assert isinstance(breezer, TionBreezer)
     assert breezer.gate == 2
+
+
+async def test_device_link_without_deprecated_via_device(
+    hass: HomeAssistant, mock_api: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Связь устройства с хабом без deprecated via_device — дедлайн 2027.8.0."""
+    with patch("homeassistant.helpers.device_registry.report_usage") as mock_report:
+        config_entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+    via_calls = [c for c in mock_report.call_args_list if "via_device" in str(c)]
+    assert via_calls == []
