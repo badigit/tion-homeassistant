@@ -28,7 +28,7 @@ jobs:
 
       - name: Поставить uv
         # Плавающего тега мажора у этого экшена нет — только полные версии.
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
